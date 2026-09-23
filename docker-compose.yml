@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taxap-postgres
+    environment:
+      POSTGRES_DB: taxap_dev
+      POSTGRES_USER: taxap
+      POSTGRES_PASSWORD: taxap_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - taxap_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxap -d taxap_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  taxap_pgdata:

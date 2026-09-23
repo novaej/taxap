@@ -1,0 +1,32 @@
+{
+  "name": "taxap",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --ext .ts,.tsx",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "next": "16.0.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "@prisma/client": "^5.13.0",
+    "next-auth": "5.0.0-beta.20",
+    "decimal.js": "^10.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "prisma": "^5.13.0",
+    "tsx": "^4.7.0",
+    "eslint": "^8.55.0",
+    "eslint-config-next": "16.0.0"
+  }
+}
