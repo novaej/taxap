@@ -147,7 +147,7 @@ export function applyFactorToVat(
   factor: Decimal
 ): Decimal {
   return totalPurchaseVat
-    .multipliedBy(factor)
+    .times(factor)
     .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 }
 
@@ -161,6 +161,6 @@ export function calculateUncreditedVat(
 ): Decimal {
   const complement = new Decimal(1).minus(factor);
   return totalPurchaseVat
-    .multipliedBy(complement)
+    .times(complement)
     .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 }

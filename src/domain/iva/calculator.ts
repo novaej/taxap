@@ -172,7 +172,7 @@ export function calculatePeriodResults(
     // Credited VAT = total purchase VAT * factor
     const totalPurchaseVat = purchasesWithCreditVat.plus(purchasesNoCreditVat);
     const creditedVat = totalPurchaseVat
-      .multipliedBy(factorCalc.factor)
+      .times(factorCalc.factor)
       .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
     results.set('CREDIT_APPLICABLE', {

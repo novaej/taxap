@@ -16,9 +16,8 @@ import { ReceivedInvoiceRow, IssuedInvoiceRow } from './file-parser';
 import {
   parseAccessKey,
   verifyAccessKeyConsistency,
-  AccessKeyInvalidError,
 } from '@/domain/iva/access-key';
-import { DomainError } from '@/domain/types';
+import { DomainError, AccessKeyInvalidError } from '@/domain/types';
 
 // ============================================================================
 // Validation Results
@@ -97,10 +96,10 @@ export class IngestionService {
           message: err.reason,
           code: 'INVALID_ACCESS_KEY',
         });
-      } else {
+      } else if (err instanceof Error) {
         errors.push({
           field: 'CLAVE_ACCESO',
-          message: 'Access key validation failed',
+          message: err.message,
           code: 'INVALID_ACCESS_KEY',
         });
       }
@@ -120,6 +119,12 @@ export class IngestionService {
           errors.push({
             field: 'CLAVE_ACCESO',
             message: err.reason,
+            code: 'ACCESS_KEY_MISMATCH',
+          });
+        } else if (err instanceof Error) {
+          errors.push({
+            field: 'CLAVE_ACCESO',
+            message: err.message,
             code: 'ACCESS_KEY_MISMATCH',
           });
         }
@@ -192,6 +197,12 @@ export class IngestionService {
           message: err.reason,
           code: 'INVALID_ACCESS_KEY',
         });
+      } else if (err instanceof Error) {
+        errors.push({
+          field: 'CLAVE_ACCESO',
+          message: err.message,
+          code: 'INVALID_ACCESS_KEY',
+        });
       }
     }
 
@@ -209,6 +220,12 @@ export class IngestionService {
           errors.push({
             field: 'CLAVE_ACCESO',
             message: err.reason,
+            code: 'ACCESS_KEY_MISMATCH',
+          });
+        } else if (err instanceof Error) {
+          errors.push({
+            field: 'CLAVE_ACCESO',
+            message: err.message,
             code: 'ACCESS_KEY_MISMATCH',
           });
         }
