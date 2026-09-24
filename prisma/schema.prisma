@@ -107,6 +107,7 @@ model TaxPeriod {
   invoicesReceived   InvoiceReceived[]
   invoicesIssued     InvoiceIssued[]
   periodResults      PeriodResult[]
+  sourceFiles        SourceFile[]
   classificationEvents ClassificationEvent[]
 
   @@unique([taxpayerId, year, month])
