@@ -3,53 +3,79 @@
  * ADR-004: All queries to taxpayer-owned data must filter by current user's access.
  *
  * Usage:
- *   const db = await withUser(userId).prisma.invoicesReceived.findMany(...)
+ *   const invoices = await withUser(userId, (tx) =>
+ *     tx.invoicesReceived.findMany(...)
+ *   );
  *
- * This sets `app.current_user_id` in PostgreSQL session before each query,
- * triggering RLS policies that enforce data isolation.
+ * `withUser` runs the SET of `app.current_user_id` and the callback's queries
+ * inside a single `$transaction`, which pins them to the same physical
+ * connection. Without that, a pooled connection could run the SET on one
+ * connection and the query on another, silently dropping the RLS filter —
+ * the exact failure this file exists to prevent.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient;
+  pgPool: Pool;
+};
+
+const pool =
+  globalForPrisma.pgPool ||
+  new Pool({
+    connectionString: process.env.DATABASE_URL,
+  });
+
+const adapter = new PrismaPg(pool);
 
 export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
+    adapter,
     log: ['warn', 'error'],
   });
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+  globalForPrisma.pgPool = pool;
+}
 
 /**
- * Database wrapper that enforces RLS.
+ * Run queries scoped to a specific user, with RLS enforced.
  * Call this at the start of any handler that needs data for a specific user.
  *
  * Example:
  *   export async function GET(req: Request) {
  *     const userId = getUserIdFromSession(); // Your auth logic
- *     const db = await withUser(userId);
- *     const invoices = await db.prisma.invoicesReceived.findMany(...);
+ *     const invoices = await withUser(userId, (tx) =>
+ *       tx.invoicesReceived.findMany(...)
+ *     );
  *   }
  */
-export async function withUser(userId: string) {
-  // Set the session variable for RLS policies
-  await prisma.$executeRawUnsafe(
-    `SET app.current_user_id = '${userId.replace(/'/g, "''")}'`
-  );
-
-  return {
-    prisma,
-    userId,
-  };
+export async function withUser<T>(
+  userId: string,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(
+      `SET LOCAL app.current_user_id = '${userId.replace(/'/g, "''")}'`
+    );
+    return fn(tx);
+  });
 }
 
 /**
  * For Admin-only operations (e.g., importing form definitions).
  * No user isolation; full database access.
  */
-export async function asAdmin() {
-  // Clear the session variable so RLS policies don't filter
-  await prisma.$executeRawUnsafe(`RESET app.current_user_id`);
-  return { prisma };
+export async function asAdmin<T>(
+  fn: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`RESET app.current_user_id`);
+    return fn(tx);
+  });
 }

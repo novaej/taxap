@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Decimal } from '@prisma/client/runtime/library';
 
 interface ResultRow {
   resultKey: string;

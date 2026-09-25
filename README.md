@@ -40,7 +40,7 @@ Retenciones y ATS están contemplados en el modelo de datos pero fuera de alcanc
 | Framework | Next.js 16 (App Router), React 19, TypeScript |
 | UI | Tailwind CSS 4, shadcn/ui |
 | i18n | next-intl (es primario) |
-| Base de datos | PostgreSQL 16+ (Docker en local) |
+| Base de datos | PostgreSQL 18+ (Docker en local) |
 | Acceso a datos | Prisma 7 + `@prisma/adapter-pg`; SQL crudo para agregaciones |
 | Aislamiento | Row-Level Security por usuario |
 | Autenticación | NextAuth v5 + bcryptjs |
