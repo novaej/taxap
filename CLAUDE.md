@@ -76,6 +76,7 @@ Nunca "Declarar" ni "Listo para declarar". ([ADR-014](docs/adr/014-caracter-asis
 | Repartir las compras con `IVA = 0` entre 507, 508, 531, 532 | No van a casillero; solo un total informativo |
 | Ver un casillero ausente en una importación como eliminado | Es "no observado"; solo se retira por acción explícita |
 | Reescribir un ADR al cambiar de opinión | Se escribe uno nuevo que lo reemplaza |
+| Habilitar RLS con solo `ENABLE ROW LEVEL SECURITY` | No alcanza si la app se conecta con el mismo rol dueño de las tablas (el caso aquí: `taxap` corre las migraciones y sirve las consultas). Postgres exime al dueño de sus propias políticas salvo que también se fije `FORCE ROW LEVEL SECURITY`. Sin ella, las políticas existen pero no filtran nada, en silencio ([ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md)) |
 
 ---
 

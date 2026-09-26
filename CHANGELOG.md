@@ -59,3 +59,22 @@ Modo imperativo: "Agregar", no "Agregado".
   listaba `npm run migrate` y `npm run test:rls`, que no existen (el script real
   es `db:migrate`; no hay todavía un test de aislamiento RLS permanente).
   Corregido para reflejar los pasos que de verdad funcionan hoy.
+- **RLS no filtraba nada, en silencio.** La migración de RLS
+  (`20260924062837_add_rls`) tenía dos fallos: políticas contra columnas
+  `snake_case` que no existen (el esquema no tiene `@map`, son `camelCase`), y sin
+  `FORCE ROW LEVEL SECURITY` el rol `taxap` —dueño de las tablas— quedaba exento de
+  sus propias políticas. Ninguno de los dos producía un error visible. Corregido y
+  verificado manualmente contra la base real. Ver
+  [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md), `NEXT_STEPS.md` y
+  `CLAUDE.md` → "Errores fáciles de cometer aquí".
+
+### Auditoría de documentación
+- Revisados los 32 archivos `.md` del repositorio contra el estado real del código.
+  Los ADR y `docs/tax/` están al día. Los specs pre-código
+  (`data-model.md`, `mvp-scope.md`, `code-flow.md`, `coding-guidelines.md`,
+  `docs/site/screens/`) describen un diseño más elaborado que lo construido —
+  registrado como decisión abierta en `NEXT_STEPS.md`, sin resolver todavía.
+- Encontrado (no corregido): `SALES_NON_OBJECT_EXEMPT` es un destino de venta
+  marcable por el usuario y documentado en `formulario-104.md`, pero
+  `src/domain/iva/calculator.ts` nunca lo calcula — desaparece de
+  `period_results` en silencio. Ver `NEXT_STEPS.md`.
