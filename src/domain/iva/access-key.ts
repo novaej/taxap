@@ -165,7 +165,7 @@ export function calculateCheckDigit(first23: string): number {
 export function verifyAccessKeyConsistency(
   accessKey: string,
   ruc: string, // RUC to verify against (emitter for received, taxpayer for issued)
-  voucherSeries: string, // "NNN-NNN-NNNNNNNNN"
+  series: string, // "NNN-NNN-NNNNNNNNN"
   emissionDate: Date
 ): void {
   const parsed = parseAccessKey(accessKey);
@@ -180,11 +180,11 @@ export function verifyAccessKeyConsistency(
   }
 
   // Verify serie matches: extract establishment and sequence from serie
-  const serieParts = voucherSeries.split('-');
+  const serieParts = series.split('-');
   if (serieParts.length !== 3) {
     throw new AccessKeyInvalidError(
       accessKey,
-      `Invalid serie format: ${voucherSeries}`
+      `Invalid serie format: ${series}`
     );
   }
 

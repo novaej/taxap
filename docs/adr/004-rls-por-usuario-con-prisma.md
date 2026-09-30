@@ -1,5 +1,18 @@
 # ADR-004: Row-Level Security por usuario con Prisma
 
+> **Actualización (2026-09-30):** el ejemplo de política de este ADR usa
+> `NULLIF(current_setting(...), '') IS NULL` como bypass de administrador —
+> es decir, cualquier consulta donde la variable de sesión simplemente **no
+> esté fijada** pasa sin filtro. Implementado tal cual, eso hace indistinguible
+> una llamada deliberada a `asAdmin()` de una consulta que alguien olvidó
+> envolver en `withUser()` — exactamente el fallo que la regla dura #2 de
+> `CLAUDE.md` prohíbe. Se corrigió: `asAdmin()` fija un id centinela explícito
+> (`00000000-0000-0000-0000-000000000000`, imposible para un usuario real
+> porque los ids reales salen de `uuidv7()`), nunca `RESET`. Una variable sin
+> fijar ahora falla cerrado — no ve nada — en vez de fallar abierto. El resto
+> del ADR no cambia; ver `prisma/migrations/*_add_rls` y `src/lib/db.ts` para
+> la implementación vigente.
+
 ## Estado
 Aceptado
 

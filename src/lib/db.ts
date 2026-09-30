@@ -12,7 +12,14 @@
  * connection. Without that, a pooled connection could run the SET on one
  * connection and the query on another, silently dropping the RLS filter —
  * the exact failure this file exists to prevent.
+ *
+ * `asAdmin()` sets an explicit sentinel id, never just RESET — a merely
+ * *unset* session variable must fail closed (see the RLS migration), so an
+ * accidental direct query is indistinguishable from a bug, not mistaken for
+ * a deliberate admin call.
  */
+
+const SYSTEM_ADMIN_ID = '00000000-0000-0000-0000-000000000000';
 
 import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -75,7 +82,9 @@ export async function asAdmin<T>(
   fn: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`RESET app.current_user_id`);
+    await tx.$executeRawUnsafe(
+      `SET LOCAL app.current_user_id = '${SYSTEM_ADMIN_ID}'`
+    );
     return fn(tx);
   });
 }

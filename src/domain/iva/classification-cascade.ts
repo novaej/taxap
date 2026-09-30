@@ -18,11 +18,11 @@ export interface ClassificationInput {
   invoiceId: string;
   emitterRuc: string;
   emitterName: string;
-  voucherType: string;
-  voucherSeries: string;
+  documentType: string;
+  series: string;
   subtotal: Decimal;
   vat: Decimal;
-  voucherTypeRecognized: boolean; // From whitelist validation (ADR-010)
+  documentTypeRecognized: boolean; // From whitelist validation (ADR-010)
   activityFingerprint: string; // Hash of taxpayer's activities
 }
 
@@ -174,13 +174,13 @@ export const classificationCascade = new ClassificationCascade();
  * Others go to manual bandeja for review.
  */
 export function requiresManualReview(
-  voucherType: string,
-  voucherTypeRecognized: boolean
+  documentType: string,
+  documentTypeRecognized: boolean
 ): boolean {
   // Unrecognized types always need review
-  if (!voucherTypeRecognized) return true;
+  if (!documentTypeRecognized) return true;
 
   // Known types that are standard: 01, 03, 04, 05, 07
   const standardTypes = ['01', '03', '04', '05', '07'];
-  return !standardTypes.includes(voucherType);
+  return !standardTypes.includes(documentType);
 }

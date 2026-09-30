@@ -2,8 +2,8 @@
 
 Convenciones globales:
 
-- **Claves primarias**: `UUID` con `DEFAULT uuid_generate_v7()`. Ordenan
-  cronológicamente y no son enumerables.
+- **Claves primarias**: `UUID` con `DEFAULT uuidv7()` — función nativa desde
+  PostgreSQL 18, sin extensión. Ordenan cronológicamente y no son enumerables.
 - **Dinero**: `DECIMAL(14,2)`. Nunca `float`, nunca `number` de JavaScript.
   En TypeScript se maneja como `Prisma.Decimal`.
 - **Fechas tributarias**: `DATE` sin zona horaria. Un comprobante emitido el

@@ -147,6 +147,16 @@ export function calculatePeriodResults(
     componentIds: exportServices.map((i) => i.id),
   });
 
+  // Non object or exempt (431)
+  const nonObjectExempt = issued.filter(
+    (i) => i.salesTreatment === SalesTreatmentEnum.NON_OBJECT_EXEMPT
+  );
+  results.set('SALES_NON_OBJECT_EXEMPT', {
+    key: 'SALES_NON_OBJECT_EXEMPT',
+    value: sumSubtotal(nonObjectExempt),
+    componentIds: nonObjectExempt.map((i) => i.id),
+  });
+
   // ========================================================================
   // PROPORTIONALITY FACTOR
   // ========================================================================

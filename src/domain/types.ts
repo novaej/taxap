@@ -27,8 +27,8 @@ export interface InvoiceReceived {
   emitterRuc: string;
   emitterName: string;
   emissionDate: Date;
-  voucherType: string;
-  voucherSeries: string;
+  documentType: string;
+  series: string;
   subtotal: Decimal; // VALOR_SIN_IMPUESTOS
   vat: Decimal; // IVA (store as-is, no derivation)
   total: Decimal;
@@ -38,7 +38,7 @@ export interface InvoiceIssued {
   id: string;
   accessKey: string;
   emissionDate: Date;
-  voucherSeries: string;
+  series: string;
   subtotal: Decimal;
   vat: Decimal;
   total: Decimal;
@@ -131,6 +131,13 @@ export const RESULT_KEYS = {
     columnPart: 'GROSS' as const,
     operation: 'SALE' as const,
     treatment: 'export services',
+  },
+  SALES_NON_OBJECT_EXEMPT: {
+    key: 'SALES_NON_OBJECT_EXEMPT',
+    description: 'Transferencias no objeto o exentas de IVA (bruto)',
+    columnPart: 'GROSS' as const,
+    operation: 'SALE' as const,
+    treatment: 'non object or exempt',
   },
   PURCHASES_WITH_CREDIT: {
     key: 'PURCHASES_WITH_CREDIT',

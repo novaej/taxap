@@ -1,5 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Prisma schema for taxap.
+// Conventions (docs/data-model.md):
+//  - PKs: UUID, native uuidv7() (PostgreSQL 18+, no extension).
+//  - Money: DECIMAL(14,2), never float.
+//  - Tax dates: DATE, no timezone.
+//  - Columns are snake_case in Postgres (@map), camelCase in Prisma/TS.
+//  - RLS: see prisma/migrations/*_add_rls and docs/adr/004-rls-por-usuario-con-prisma.md
 
 datasource db {
   provider = "postgresql"
@@ -10,24 +15,27 @@ generator client {
 }
 
 // ============================================================================
-// Authentication & Multi-tenancy (ADR-003, ADR-004)
+// Identidad y acceso
 // ============================================================================
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
-  firstName     String?
-  lastName      String?
-  role          UserRole @default(INDIVIDUAL)
-  plan          Plan     @default(STARTER)
-  aiEnabled     Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  role         UserRole @default(INDIVIDUAL)
+  planCode     String   @default("STARTER") @map("plan_code")
+  aiEnabled    Boolean  @default(true) @map("ai_enabled")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  // Relations
-  userTaxpayers UserTaxpayer[]
+  plan                 Plan                   @relation(fields: [planCode], references: [code])
+  userTaxpayers        UserTaxpayer[]
   classificationEvents ClassificationEvent[]
+  sourceFiles          SourceFile[]
+  formVersionsImported FormVersion[]
+  aiUsage              AiUsage[]
+  taxpayersCreated     Taxpayer[]
 
   @@map("users")
 }
@@ -38,21 +46,30 @@ enum UserRole {
   ADMIN
 }
 
-enum Plan {
-  STARTER
-  PROFESSIONAL
-  ENTERPRISE
+/// Planes: dos límites (contribuyentes, usuarios). El segundo es 1 hoy en
+/// todos los planes, pero la columna existe (ADR-003).
+model Plan {
+  code          String  @id
+  maxTaxpayers  Int     @map("max_taxpayers")
+  maxUsers      Int     @default(1) @map("max_users")
+  aiIncluded    Boolean @default(true) @map("ai_included")
+
+  users User[]
+
+  @@map("plans")
 }
 
-// User-Taxpayer junction table (ADR-003)
+/// Tabla de unión desde el día uno, aunque hoy cada contribuyente tiene
+/// exactamente una fila (ADR-003).
 model UserTaxpayer {
-  id          String   @id @default(cuid())
-  userId      String
-  taxpayerId  String
-  createdAt   DateTime @default(now())
+  id         String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  taxpayerId String         @map("taxpayer_id") @db.Uuid
+  access     TaxpayerAccess @default(OWNER)
+  createdAt  DateTime       @default(now()) @map("created_at")
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  taxpayer    Taxpayer @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taxpayer Taxpayer @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
 
   @@unique([userId, taxpayerId])
   @@index([userId])
@@ -60,288 +77,354 @@ model UserTaxpayer {
   @@map("user_taxpayers")
 }
 
+enum TaxpayerAccess {
+  OWNER
+  COLLABORATOR
+}
+
 // ============================================================================
-// Taxpayer & Tax Periods
+// Contribuyentes y períodos
 // ============================================================================
 
 model Taxpayer {
-  id                  String   @id @default(cuid())
-  ruc                 String   @unique
-  businessName        String
-  economicActivities  String[] // JSON array of activity codes
-  ivaRegime           String   // "GENERAL", "SIMPLIFIED", etc.
-  ivaPeriodicity      String   // "MONTHLY", "SEMIANNUAL"
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                  String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  ruc                 String       @unique
+  businessName        String       @map("business_name")
+  tradeName            String?      @map("trade_name")
+  regime              TaxRegime    @default(GENERAL)
+  ivaPeriodicity      Periodicity  @default(MONTHLY) @map("iva_periodicity")
+  economicActivities  Json         @default("[]") @map("economic_activities") // [{code, description}]
+  activityFingerprint String       @map("activity_fingerprint")
+  // Quién lo creó — no está en data-model.md, se agrega porque Prisma's
+  // .create() siempre hace INSERT ... RETURNING, y Postgres filtra RETURNING
+  // por la política de SELECT: sin esto, el creador no puede ver la fila que
+  // acaba de insertar hasta que exista el vínculo en user_taxpayers (que se
+  // crea en la sentencia siguiente, no en la misma).
+  createdBy           String       @map("created_by") @db.Uuid
+  createdAt           DateTime     @default(now()) @map("created_at")
 
-  // Relations
-  userTaxpayers       UserTaxpayer[]
-  taxPeriods          TaxPeriod[]
-  supplierRules       SupplierRule[]
-  invoicesReceived    InvoiceReceived[]
-  invoicesIssued      InvoiceIssued[]
-  sourceFiles         SourceFile[]
+  creator          User             @relation(fields: [createdBy], references: [id])
+  userTaxpayers    UserTaxpayer[]
+  taxPeriods       TaxPeriod[]
+  supplierRules    SupplierRule[]
+  invoicesReceived InvoiceReceived[]
+  invoicesIssued   InvoiceIssued[]
+  sourceFiles      SourceFile[]
+  aiUsage          AiUsage[]
 
-  // RLS: all queries on taxpayer-owned data must filter by this
   @@index([ruc])
   @@map("taxpayers")
 }
 
+enum TaxRegime {
+  RIMPE_POPULAR
+  RIMPE_EMPRENDEDOR
+  GENERAL
+}
+
+enum Periodicity {
+  MONTHLY
+  SEMIANNUAL
+  ANNUAL
+}
+
 model TaxPeriod {
-  id            String   @id @default(cuid())
-  taxpayerId    String
-  year          Int
-  month         Int
-  periodStart   DateTime
-  periodEnd     DateTime
-  status        PeriodStatus @default(DRAFT)
-  formVersionId String?
-  lockedAt      DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                     String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  taxpayerId             String       @map("taxpayer_id") @db.Uuid
+  taxType                TaxType      @default(IVA) @map("tax_type")
+  periodStart            DateTime     @map("period_start") @db.Date
+  periodEnd              DateTime     @map("period_end") @db.Date
+  periodicity            Periodicity  @default(MONTHLY)
+  status                 PeriodStatus @default(DRAFT)
+  formVersionId          String?      @map("form_version_id") @db.Uuid
+  proportionalityFactor  Decimal?     @map("proportionality_factor") @db.Decimal(5, 4)
+  factorInputs           Json?        @map("factor_inputs")
+  filedAt                DateTime?    @map("filed_at")
+  lockedAt               DateTime?    @map("locked_at")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
 
-  taxpayer      Taxpayer @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
-  formVersion   FormVersion? @relation(fields: [formVersionId], references: [id])
+  taxpayer    Taxpayer     @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
+  formVersion FormVersion? @relation(fields: [formVersionId], references: [id])
 
-  invoicesReceived   InvoiceReceived[]
-  invoicesIssued     InvoiceIssued[]
-  periodResults      PeriodResult[]
-  sourceFiles        SourceFile[]
+  invoicesReceived     InvoiceReceived[]
+  invoicesIssued       InvoiceIssued[]
+  periodResults        PeriodResult[]
+  sourceFiles          SourceFile[]
   classificationEvents ClassificationEvent[]
 
-  @@unique([taxpayerId, year, month])
+  @@unique([taxpayerId, taxType, periodStart])
   @@index([taxpayerId])
   @@index([status])
   @@map("tax_periods")
 }
 
-enum PeriodStatus {
-  DRAFT
-  FILED
-  AMENDED
+enum TaxType {
+  IVA
+  INCOME_TAX
+  WITHHOLDING
 }
 
-// ============================================================================
-// Source Files & Ingestion (ADR-011)
-// ============================================================================
+enum PeriodStatus {
+  DRAFT
+  UNDER_REVIEW
+  FILED
+}
 
 model SourceFile {
-  id          String   @id @default(cuid())
-  taxpayerId  String
-  taxPeriodId String?
-  filename    String
-  sha256      String
-  fileType    String   // "RECIBIDAS" | "EMITIDAS"
-  rowCount    Int
-  importedAt  DateTime @default(now())
+  id           String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  taxpayerId   String     @map("taxpayer_id") @db.Uuid
+  taxPeriodId  String?    @map("tax_period_id") @db.Uuid
+  kind         SourceKind
+  filename     String
+  sha256       String
+  rowCount     Int        @default(0) @map("row_count")
+  rowsImported Int        @default(0) @map("rows_imported")
+  rowsRejected Int        @default(0) @map("rows_rejected")
+  uploadedBy   String     @map("uploaded_by") @db.Uuid
+  uploadedAt   DateTime   @default(now()) @map("uploaded_at")
 
-  taxpayer    Taxpayer @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
-  taxPeriod   TaxPeriod? @relation(fields: [taxPeriodId], references: [id], onDelete: SetNull)
+  taxpayer   Taxpayer   @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
+  taxPeriod  TaxPeriod? @relation(fields: [taxPeriodId], references: [id], onDelete: SetNull)
+  uploader   User       @relation(fields: [uploadedBy], references: [id])
 
   @@index([taxpayerId])
   @@index([sha256])
   @@map("source_files")
 }
 
+enum SourceKind {
+  PURCHASES_TXT
+  SALES_TXT
+}
+
 // ============================================================================
-// Invoices Received (Compras) (ADR-008, ADR-010)
+// Comprobantes
 // ============================================================================
 
+/// Refleja las columnas del archivo del SRI, sin inventar campos (ADR-008).
 model InvoiceReceived {
-  id                    String   @id @default(cuid())
-  taxpayerId            String
-  taxPeriodId           String
+  id                   String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  taxpayerId           String            @map("taxpayer_id") @db.Uuid
+  taxPeriodId          String            @map("tax_period_id") @db.Uuid
+  sourceFileId         String?           @map("source_file_id") @db.Uuid
 
-  // From file
-  accessKey             String   // 49-digit clave de acceso
-  emissionDate          DateTime
-  emitterRuc            String
-  emitterName           String
-  voucherType           String   // Type code (01-79)
-  voucherSeries         String   // NNN-NNN-NNNNNNNNN
+  accessKey            String            @map("access_key") @db.Char(49)
+  supplierRuc          String            @map("supplier_ruc")
+  supplierName         String            @map("supplier_name")
+  documentType         String            @map("document_type")
+  series               String
+  issueDate            DateTime          @map("issue_date") @db.Date
+  authorizationDate    DateTime?         @map("authorization_date")
+  subtotal             Decimal           @db.Decimal(14, 2)
+  vatAmount            Decimal           @map("vat_amount") @db.Decimal(14, 2)
+  total                Decimal           @db.Decimal(14, 2)
+  modifiedDocument     String?           @map("modified_document")
 
-  // Totals only (ADR-008)
-  subtotal              Decimal  @db.Decimal(14, 2)
-  vat                   Decimal  @db.Decimal(14, 2)
-  total                 Decimal  @db.Decimal(14, 2)
+  // Clasificación (ADR-005, ADR-006)
+  ivaCategory          IvaCategory       @default(UNCLASSIFIED) @map("iva_category")
+  processingStatus     ProcessingStatus  @default(REQUIRES_MANUAL_REVIEW) @map("processing_status")
+  classificationSource ClassificationSourceType? @map("classification_source")
+  appliedRuleId        String?           @map("applied_rule_id") @db.Uuid
+  aiConfidence         Decimal?          @map("ai_confidence") @db.Decimal(3, 2)
+  aiReasoning          String?           @map("ai_reasoning")
 
-  // Classification (ADR-005, ADR-006)
-  ivaCategory           IvaCategory @default(UNCLASSIFIED)
-  suggestedCategory     IvaCategory?
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
 
-  // Credit determination (ADR-005, ADR-006)
-  status                InvoiceStatus @default(PENDING)
-  excludedReason        String?  // If status = EXCLUDED
-
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  taxpayer              Taxpayer @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
-  taxPeriod             TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
+  taxpayer  Taxpayer   @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
+  taxPeriod TaxPeriod  @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
 
   @@unique([taxpayerId, accessKey])
-  @@index([taxpayerId])
-  @@index([taxPeriodId])
-  @@index([emitterRuc])
-  @@index([emissionDate])
-  @@index([ivaCategory])
+  @@index([taxpayerId, taxPeriodId, processingStatus])
+  @@index([taxpayerId, supplierRuc])
   @@map("invoices_received")
 }
 
 enum IvaCategory {
-  CREDIT                    // 500: con derecho a crédito
-  COST_EXPENSE              // 502: sin derecho a crédito
-  NOT_APPLICABLE            // IVA = 0, no entra a cascada
-  UNCLASSIFIED              // Sin clasificar aún
-  NON_DEDUCTIBLE            // No deducible (fuera de negocio)
+  CREDIT         // 500: con derecho a crédito
+  COST_EXPENSE   // 502: sin derecho a crédito
+  NON_DEDUCTIBLE // no deducible (fuera de negocio)
+  NOT_APPLICABLE // IVA = 0, no entra a la cascada
+  UNCLASSIFIED   // sin clasificar aún
 }
 
-enum InvoiceStatus {
-  PENDING
-  CLASSIFIED
+/// PROCESSED/REQUIRES_MANUAL_REVIEW/EXCLUDED son los estados documentados en
+/// data-model.md. UNCLASSIFIED es el estado inicial tras la ingesta, antes de
+/// que corra el paso 2 (ADR-011) — el spec no lo nombra explícitamente pero
+/// "sin clasificar" es justamente esto.
+enum ProcessingStatus {
+  UNCLASSIFIED
+  PROCESSED
+  REQUIRES_MANUAL_REVIEW
   EXCLUDED
 }
 
-// ============================================================================
-// Invoices Issued (Ventas)
-// ============================================================================
+enum ClassificationSourceType {
+  RULE
+  CATALOG
+  AI
+  USER
+  DETERMINISTIC
+}
 
+/// El archivo de emitidas tiene menos columnas que el de recibidas: no trae
+/// identificación del receptor ni razón social.
 model InvoiceIssued {
-  id                String   @id @default(cuid())
-  taxpayerId        String
-  taxPeriodId       String
+  id                String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  taxpayerId        String         @map("taxpayer_id") @db.Uuid
+  taxPeriodId       String         @map("tax_period_id") @db.Uuid
+  sourceFileId      String?        @map("source_file_id") @db.Uuid
 
-  // From file
-  accessKey         String   // 49-digit
-  emissionDate      DateTime
-  voucherSeries     String   // NNN-NNN-NNNNNNNNN
+  accessKey         String         @map("access_key") @db.Char(49)
+  documentType      String         @map("document_type") // COMPROBANTE, no TIPO_COMPROBANTE
+  series            String
+  issueDate         DateTime       @map("issue_date")
+  authorizationDate DateTime?      @map("authorization_date")
+  subtotal          Decimal        @db.Decimal(14, 2)
+  vatAmount         Decimal        @map("vat_amount") @db.Decimal(14, 2)
+  total             Decimal        @db.Decimal(14, 2)
 
-  // Totals only
-  subtotal          Decimal  @db.Decimal(14, 2)
-  vat               Decimal  @db.Decimal(14, 2)
-  total             Decimal  @db.Decimal(14, 2)
+  salesTreatment    SalesTreatment @default(UNCLASSIFIED) @map("sales_treatment")
 
-  // Sales treatment (only for IVA = 0) (ADR-005, mvp-scope §5)
-  salesTreatment    SalesTreatment @default(UNCLASSIFIED)
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  taxpayer          Taxpayer @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
-  taxPeriod         TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
+  taxpayer  Taxpayer  @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
+  taxPeriod TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
 
   @@unique([taxpayerId, accessKey])
   @@index([taxpayerId])
   @@index([taxPeriodId])
-  @@index([emissionDate])
+  @@index([issueDate])
   @@index([salesTreatment])
   @@map("invoices_issued")
 }
 
 enum SalesTreatment {
-  TAXED                     // IVA > 0, automático
-  ZERO_NO_CREDIT            // 403: 0% sin derecho a crédito
-  ZERO_WITH_CREDIT          // 405: 0% con derecho a crédito
-  EXPORT_GOODS              // 407: exportación de bienes
-  EXPORT_SERVICES           // 408: exportación de servicios
-  NON_OBJECT_EXEMPT         // 431: no objeto o exenta
-  UNCLASSIFIED              // Sin marcar (ventas con IVA=0)
+  TAXED             // IVA > 0, automático
+  ZERO_NO_CREDIT    // 403
+  ZERO_WITH_CREDIT  // 405
+  EXPORT_GOODS      // 407
+  EXPORT_SERVICES   // 408
+  NON_OBJECT_EXEMPT // 431
+  UNCLASSIFIED      // sin marcar
 }
 
 // ============================================================================
-// Classification & Audit Trail (ADR-005, ADR-006, ADR-013)
+// Motor de clasificación
 // ============================================================================
 
+/// La regla es por contribuyente; revocable, no se borra (ADR-006).
 model SupplierRule {
-  id                    String   @id @default(cuid())
-  taxpayerId            String
-  emitterRuc            String
-  activityFingerprint   String   // Hash of taxpayer's economic activities (ADR-006)
+  id                  String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  taxpayerId          String      @map("taxpayer_id") @db.Uuid
+  supplierRuc         String      @map("supplier_ruc")
+  activityFingerprint String      @map("activity_fingerprint")
+  ivaCategory         IvaCategory @map("iva_category")
+  source              RuleSource
+  createdBy           String?     @map("created_by") @db.Uuid
+  timesApplied        Int         @default(0) @map("times_applied")
+  revokedAt           DateTime?   @map("revoked_at")
+  appliedAt           DateTime    @default(now()) @map("applied_at")
 
-  decision              IvaCategory
-  appliedAt             DateTime @default(now())
+  taxpayer Taxpayer @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
 
-  taxpayer              Taxpayer @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
-
-  @@unique([taxpayerId, emitterRuc, activityFingerprint])
   @@index([taxpayerId])
   @@map("supplier_rules")
 }
 
-// Immutable audit log (ADR-013)
+enum RuleSource {
+  USER
+  CATALOG
+  AI
+}
+
+/// Agregado global y anónimo — sin identificadores de contribuyentes ni
+/// usuarios (ADR-007).
+model SharedSupplierCatalog {
+  supplierRuc          String      @id @map("supplier_ruc")
+  supplierName         String      @map("supplier_name")
+  suggestedIvaCategory IvaCategory @map("suggested_iva_category")
+  agreementRatio       Decimal     @map("agreement_ratio") @db.Decimal(3, 2)
+  sampleCount          Int         @default(1) @map("sample_count")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  @@map("shared_supplier_catalog")
+}
+
+/// Append-only; UPDATE y DELETE se rechazan por trigger (ADR-013).
 model ClassificationEvent {
-  id                    String   @id @default(cuid())
-  taxpayerId            String   // Denormalized for audit trail
-  taxPeriodId           String
-  userId                String
+  id                String                    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  receivedInvoiceId String?                   @map("received_invoice_id") @db.Uuid
+  issuedInvoiceId   String?                   @map("issued_invoice_id") @db.Uuid
+  taxpayerId        String                    @map("taxpayer_id") @db.Uuid
+  taxPeriodId       String                    @map("tax_period_id") @db.Uuid
 
-  invoiceReceivedId     String?  // FK if about a received invoice
-  invoiceIssuedId       String?  // FK if about an issued invoice
+  field             String
+  oldValue          String?                   @map("old_value")
+  newValue          String?                   @map("new_value")
+  actorType         ActorType                 @map("actor_type")
+  actorUserId       String?                   @map("actor_user_id") @db.Uuid
+  source            ClassificationSourceType?
+  rulesVersion      String?                   @map("rules_version")
+  modelId           String?                   @map("model_id")
+  promptVersion     String?                   @map("prompt_version")
+  reason            String?
 
-  eventType             ClassificationEventType
-  previousCategory      IvaCategory?
-  newCategory           IvaCategory?
-  previousTreatment     SalesTreatment?
-  newTreatment          SalesTreatment?
+  createdAt         DateTime                  @default(now()) @map("created_at")
 
-  reason                String?  // Why the change (e.g., "IA: confianza 0.85", "Manual: usuario")
-
-  createdAt             DateTime @default(now())
-
-  taxPeriod             TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
-  user                  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taxPeriod TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
+  actorUser User?     @relation(fields: [actorUserId], references: [id])
 
   @@index([taxPeriodId])
-  @@index([userId])
-  @@index([eventType])
+  @@index([actorUserId])
   @@map("classification_events")
 }
 
-enum ClassificationEventType {
-  INVOICE_CLASSIFIED      // First classification (cascada)
-  INVOICE_RECLASSIFIED    // Manual change
-  SALES_MARKED            // Venta con IVA=0 marcada por usuario
-  SALES_REMARKED          // Venta con IVA=0 remarcada
+enum ActorType {
+  USER
+  ENGINE
 }
 
 // ============================================================================
-// Results & Presentation (ADR-015)
+// Datos normativos
 // ============================================================================
 
-model PeriodResult {
-  id            String   @id @default(cuid())
-  taxPeriodId   String
-  resultKey     String   // e.g., "PURCHASES_WITH_CREDIT", "SALES_TAXED"
-  value         Decimal  @db.Decimal(14, 4)
-  computedAt    DateTime @default(now())
+model TaxRate {
+  tax       TaxRateType
+  rate      Decimal     @db.Decimal(5, 4)
+  validFrom DateTime    @map("valid_from") @db.Date
+  validTo   DateTime?   @map("valid_to") @db.Date
 
-  taxPeriod     TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
+  @@id([tax, validFrom])
+  @@map("tax_rates")
+}
 
-  @@unique([taxPeriodId, resultKey])
-  @@index([taxPeriodId])
-  @@map("period_results")
+enum TaxRateType {
+  IVA
 }
 
 // ============================================================================
-// Form Catalog & Result Mapping (ADR-015)
+// Formulario y relación con los resultados (ADR-015)
 // ============================================================================
 
 model FormVersion {
-  id            String   @id @default(cuid())
-  formCode      String   // "104"
-  label         String   // "Declaración de IVA"
-  validFrom     DateTime
-  validTo       DateTime?
-  status        FormStatus @default(DRAFT)
-  sourceSha256  String?  // Hash of the PDF, not stored
-  importedBy    String?
-  importedAt    DateTime?
-  publishedAt   DateTime?
-  createdAt     DateTime @default(now())
+  id           String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  formCode     String      @map("form_code") // "104"; el MVP solo soporta el mensual
+  label        String
+  validFrom    DateTime    @map("valid_from") @db.Date
+  validTo      DateTime?   @map("valid_to") @db.Date
+  status       FormStatus  @default(DRAFT)
+  sourceSha256 String?     @map("source_sha256") // hash del PDF; el archivo no se guarda
+  importedBy   String?     @map("imported_by") @db.Uuid
+  importedAt   DateTime?   @map("imported_at")
+  publishedAt  DateTime?   @map("published_at")
 
-  formFields    FormField[]
+  importer       User?           @relation(fields: [importedBy], references: [id])
+  formFields     FormField[]
   resultMappings ResultMapping[]
-  taxPeriods    TaxPeriod[]
+  taxPeriods     TaxPeriod[]
 
   @@unique([formCode, validFrom])
   @@index([status])
@@ -353,19 +436,19 @@ enum FormStatus {
   PUBLISHED
 }
 
-// All fields from the form (structure only, no values)
+/// El catálogo completo del formulario, tal como sale del PDF. Sin valores,
+/// sin fórmulas, sin datos personales.
 model FormField {
-  id            String   @id @default(cuid())
-  formVersionId String
-  code          String   // "500", "563", etc.
-  label         String   // Official name
-  section       String?  // "Resumen de adquisiciones y pagos"
-  columnKind    ColumnKind @default(SINGLE)
-  displayOrder  Int
-  observed      Boolean  @default(true) // false if absent in a re-import
-  createdAt     DateTime @default(now())
+  id            String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  formVersionId String     @map("form_version_id") @db.Uuid
+  code          String     // "500", "563"...
+  label         String
+  section       String?
+  columnKind    ColumnKind @default(SINGLE) @map("column_kind")
+  displayOrder  Int        @map("display_order")
+  observed      Boolean    @default(true) // false si una importación posterior no lo encontró
 
-  formVersion   FormVersion @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
+  formVersion    FormVersion     @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
   resultMappings ResultMapping[]
 
   @@unique([formVersionId, code])
@@ -374,69 +457,62 @@ model FormField {
 }
 
 enum ColumnKind {
-  GROSS    // Bruto
-  NET      // Neto
-  TAX      // Impuesto
-  SINGLE   // Valor único
+  GROSS
+  NET
+  TAX
+  SINGLE
 }
 
-// Relates each domain result to a form field (ADR-015)
+/// Qué campo recibe cada resultado, calculado una vez por versión y guardado.
+/// Nadie edita estas filas a mano.
 model ResultMapping {
-  id            String   @id @default(cuid())
-  formVersionId String
-  resultKey     String   // "PURCHASES_WITH_CREDIT", "SALES_TAXED", etc.
-  formFieldId   String?
+  formVersionId String        @map("form_version_id") @db.Uuid
+  resultKey     String        @map("result_key") // ej. PURCHASES_WITH_CREDIT.GROSS
+  formFieldId   String?       @map("form_field_id") @db.Uuid
   method        MappingMethod @default(ATTRIBUTES)
-  reason        String   // Why this mapping (shown to user)
-  confidence    Decimal? @db.Decimal(3, 2) // Only for method=AI
-  createdAt     DateTime @default(now())
+  reason        String        // explicación mostrada al usuario
+  confidence    Decimal?      @db.Decimal(3, 2) // solo cuando method = AI
+  createdAt     DateTime      @default(now()) @map("created_at")
 
-  formVersion   FormVersion @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
-  formField     FormField? @relation(fields: [formFieldId], references: [id], onDelete: SetNull)
+  formVersion FormVersion @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
+  formField   FormField?  @relation(fields: [formFieldId], references: [id], onDelete: SetNull)
 
-  @@unique([formVersionId, resultKey])
-  @@index([formVersionId])
+  @@id([formVersionId, resultKey])
+  @@unique([formVersionId, formFieldId])
   @@map("result_mappings")
 }
 
 enum MappingMethod {
-  ATTRIBUTES  // Deterministic match by result attributes
-  AI          // Suggested by Claude
+  ATTRIBUTES
+  AI
 }
 
-// ============================================================================
-// Tax Data (ADR-012)
-// ============================================================================
+/// Lo que el dominio calculó. No conoce casilleros — la presentación une esto
+/// con result_mappings de la versión guardada en tax_periods.
+model PeriodResult {
+  taxPeriodId String   @map("tax_period_id") @db.Uuid
+  resultKey   String   @map("result_key")
+  value       Decimal  @db.Decimal(14, 4) // 4 decimales por el factor (1.0000)
+  computedAt  DateTime @default(now()) @map("computed_at")
 
-model TaxRate {
-  id            String   @id @default(cuid())
-  rateType      String   // "IVA", "RENTA", etc.
-  rate          Decimal  @db.Decimal(5, 2) // e.g., 15.00
-  validFrom     DateTime
-  validTo       DateTime?
-  source        String   // "SRI Resolución X", etc.
-  sourceDate    DateTime
-  createdAt     DateTime @default(now())
+  taxPeriod TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
 
-  @@unique([rateType, validFrom])
-  @@index([rateType])
-  @@index([validFrom])
-  @@map("tax_rates")
+  @@id([taxPeriodId, resultKey])
+  @@map("period_results")
 }
 
-// ============================================================================
-// Shared Catalog (ADR-007) — optional, for recommendation
-// ============================================================================
+/// Medición de consumo de IA para detectar abuso, no para facturar (ADR-007).
+model AiUsage {
+  userId       String   @map("user_id") @db.Uuid
+  taxpayerId   String   @map("taxpayer_id") @db.Uuid
+  period       DateTime @db.Date
+  calls        Int      @default(0)
+  inputTokens  Int      @default(0) @map("input_tokens")
+  outputTokens Int      @default(0) @map("output_tokens")
 
-model SharedSupplierCatalog {
-  id            String   @id @default(cuid())
-  ruc           String   @unique
-  name          String
-  suggestedCategory IvaCategory
-  observations  String?
-  frequency     Int @default(1) // How many users classified this way
-  updatedAt     DateTime @updatedAt
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taxpayer Taxpayer @relation(fields: [taxpayerId], references: [id], onDelete: Cascade)
 
-  @@index([ruc])
-  @@map("shared_supplier_catalog")
+  @@id([userId, taxpayerId, period])
+  @@map("ai_usage")
 }
