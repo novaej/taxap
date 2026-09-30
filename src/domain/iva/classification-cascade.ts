@@ -169,18 +169,12 @@ export class ClassificationCascade {
 export const classificationCascade = new ClassificationCascade();
 
 /**
- * Determine if a voucher type is "problematic" and needs manual review.
- * Types 01, 03, 04, 05, 07 (facturas, liquidaciones, notas) are standard.
- * Others go to manual bandeja for review.
+ * A voucher type outside the ingestion whitelist (ADR-010,
+ * services/ingestion/ingestion-service.ts VOUCHER_TYPE_WHITELIST) is never
+ * rejected outright, but it does need manual review instead of running
+ * through the cascade — this is the single source of truth for
+ * "recognized", not a second, narrower list.
  */
-export function requiresManualReview(
-  documentType: string,
-  documentTypeRecognized: boolean
-): boolean {
-  // Unrecognized types always need review
-  if (!documentTypeRecognized) return true;
-
-  // Known types that are standard: 01, 03, 04, 05, 07
-  const standardTypes = ['01', '03', '04', '05', '07'];
-  return !standardTypes.includes(documentType);
+export function requiresManualReview(documentTypeRecognized: boolean): boolean {
+  return !documentTypeRecognized;
 }

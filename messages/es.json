@@ -1,0 +1,111 @@
+{
+  "Common": {
+    "appName": "taxap",
+    "back": "Volver",
+    "loading": "Cargando…",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "disclaimer": "Cálculo asistido, pendiente de revisión del responsable antes de presentarse al SRI. No sustituye el criterio profesional."
+  },
+  "HomePage": {
+    "title": "taxap",
+    "subtitle": "Automatización de IVA para Ecuador",
+    "modulesHeading": "Módulos",
+    "ingesta": {
+      "title": "Ingesta",
+      "description": "Cargar archivos del SRI (compras, ventas) y validar el formato"
+    },
+    "ventas": {
+      "title": "Ventas emitidas",
+      "description": "Marcar el destino de las ventas con IVA 0% y ver el factor de proporcionalidad"
+    },
+    "conciliacion": {
+      "title": "Conciliación",
+      "description": "Revisar y clasificar manualmente los comprobantes que la cascada no resolvió"
+    },
+    "predeclaracion": {
+      "title": "Pre-declaración",
+      "description": "Revisar los resultados del formulario 104 antes de declarar"
+    }
+  },
+  "Ingesta": {
+    "title": "Ingesta de archivos",
+    "uploadHeading": "Cargar archivo",
+    "selectedFile": "Seleccionado",
+    "fileSize": "Tamaño",
+    "uploadButton": "Cargar y validar",
+    "uploading": "Cargando…",
+    "resultHeading": "Resultado de la carga",
+    "fileType": "Tipo de archivo",
+    "totalRows": "Filas totales",
+    "valid": "Válidas",
+    "errors": "Con error",
+    "errorsHeading": "Errores de validación",
+    "row": "Fila",
+    "field": "Campo",
+    "errorColumn": "Error",
+    "severity": "Severidad",
+    "readyMessage": "{count} comprobantes listos para clasificar",
+    "continueToClassification": "Continuar a clasificación →"
+  },
+  "VentasEmitidas": {
+    "title": "Ventas emitidas",
+    "taxedSales": "Ventas gravadas (IVA > 0)",
+    "assignedAutomatically": "asignadas automáticamente",
+    "zeroRatedSales": "Ventas con IVA 0%",
+    "missingCount": "faltan {count} por marcar",
+    "selectAll": "Seleccionar todo",
+    "markSelectedAs": "Marcar seleccionadas como",
+    "chooseDestination": "elegir destino",
+    "series": "Serie",
+    "date": "Fecha",
+    "total": "Total",
+    "destination": "Destino",
+    "unmarked": "sin marcar",
+    "destinations": {
+      "ZERO_NO_CREDIT": "0% sin derecho a crédito",
+      "ZERO_WITH_CREDIT": "0% con derecho a crédito",
+      "EXPORT_GOODS": "Exportación de bienes",
+      "EXPORT_SERVICES": "Exportación de servicios",
+      "NON_OBJECT_EXEMPT": "No objeto o exenta de IVA"
+    },
+    "factorBlockedNotice": "El factor de proporcionalidad no se calculará hasta que todas las ventas con IVA 0% tengan un destino marcado.",
+    "continueToConciliation": "Continuar a conciliación de compras →"
+  },
+  "Conciliacion": {
+    "title": "Conciliación de compras",
+    "classifyButton": "Clasificar comprobantes pendientes",
+    "tabWithCredit": "Con crédito tributario",
+    "tabCostExpense": "Costo o gasto",
+    "tabPending": "Pendientes",
+    "selectAll": "Seleccionar todo",
+    "bulkAction": "Acción masiva",
+    "supplier": "Proveedor",
+    "ruc": "RUC",
+    "total": "Total",
+    "reason": "Motivo",
+    "classifyAs": "Clasificar como",
+    "withCredit": "Con crédito",
+    "costOrExpense": "Costo o gasto",
+    "exclude": "Excluir",
+    "confirmClassification": "Confirmar clasificación",
+    "emptyState": "Todos los comprobantes están clasificados",
+    "continueToPreDeclaration": "Continuar a pre-declaración →"
+  },
+  "PreDeclaracion": {
+    "title": "Pre-declaración",
+    "formLabel": "Formulario 104 (mensual)",
+    "draftBadge": "Borrador",
+    "totalsUsedNotice": "Se trabaja con los totales de cada comprobante, no con el detalle de líneas.",
+    "salesHeading": "Ventas",
+    "purchasesHeading": "Adquisiciones",
+    "factorHeading": "Factor de proporcionalidad",
+    "factorBlocked": "No calculado: hay ventas con IVA 0% sin destino marcado.",
+    "goToMark": "Ir a marcar →",
+    "whyHere": "¿Por qué aquí?",
+    "viewDetail": "Ver detalle",
+    "noFieldFound": "Sin casillero definitivo",
+    "lockPeriod": "Marcar período como declarado"
+  }
+}

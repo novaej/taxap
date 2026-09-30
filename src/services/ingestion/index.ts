@@ -6,5 +6,5 @@
 export { parseFile, parseReceivedFile, parseIssuedFile, detectFileType } from './file-parser';
 export type { ReceivedInvoiceRow, IssuedInvoiceRow, ParseResult, ParseError } from './file-parser';
 
-export { ingestionService, IngestionService } from './ingestion-service';
+export { ingestionService, IngestionService, VOUCHER_TYPE_WHITELIST } from './ingestion-service';
 export type { InvoiceValidationResult, ValidationError, IngestionReport } from './ingestion-service';

@@ -1,18 +1,19 @@
-import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
+import { getLocale } from 'next-intl/server';
 import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'taxap — IVA Automation',
-  description: 'Calculate IVA declaration values in minutes, not days.',
-};
-
-export default function RootLayout({
+// The single <html>/<body> shell for the whole app, including src/app/api/*
+// which must never be locale-prefixed. Per-locale text and NextIntlClientProvider
+// live in src/app/[locale]/layout.tsx.
+export default async function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
+  const locale = await getLocale();
+
   return (
-    <html lang="es">
+    <html lang={locale}>
       <body>{children}</body>
     </html>
   );

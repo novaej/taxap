@@ -72,9 +72,53 @@ Modo imperativo: "Agregar", no "Agregado".
 - Revisados los 32 archivos `.md` del repositorio contra el estado real del código.
   Los ADR y `docs/tax/` están al día. Los specs pre-código
   (`data-model.md`, `mvp-scope.md`, `code-flow.md`, `coding-guidelines.md`,
-  `docs/site/screens/`) describen un diseño más elaborado que lo construido —
-  registrado como decisión abierta en `NEXT_STEPS.md`, sin resolver todavía.
-- Encontrado (no corregido): `SALES_NON_OBJECT_EXEMPT` es un destino de venta
-  marcable por el usuario y documentado en `formulario-104.md`, pero
-  `src/domain/iva/calculator.ts` nunca lo calcula — desaparece de
-  `period_results` en silencio. Ver `NEXT_STEPS.md`.
+  `docs/site/screens/`) describían un diseño más elaborado que lo construido —
+  reconciliado el 2026-09-30, ver más abajo.
+
+## [2026-09-30] Reconciliación del código con los specs pre-código
+
+### Agregado
+- Esquema de Prisma reescrito para seguir `docs/data-model.md`: `id` con
+  `uuidv7()` nativo (PostgreSQL 18, sin extensión) en vez de `cuid()`; cada
+  columna mapeada a `snake_case` vía `@map`; tablas `plans` y `ai_usage`;
+  campos que faltaban en `taxpayers`, `tax_periods`, `invoices_received`,
+  `invoices_issued`, `supplier_rules`. `taxpayers.created_by` se agregó sin
+  estar en el spec — necesario para que Prisma pueda crear un contribuyente
+  en absoluto (ver Corregido).
+- `scripts/db-reset.ts` (`npm run db:reset`), modelado en `comprobify/db/reset.js`:
+  bloqueado en producción, borra tablas/tipos/funciones de `public` y vuelve a
+  aplicar las migraciones.
+- Enrutado movido a `src/app/[locale]/(app)/[taxpayerId]/periodos/[periodId]/...`
+  con `next-intl` (`messages/es.json`) y Server Actions, reemplazando las rutas
+  planas y las API routes REST.
+- Tailwind 4 + shadcn/ui (`components.json`, `src/components/ui/`) en vez de
+  estilos inline.
+
+### Corregido
+- **RLS, dos fallos más** además de los ya corregidos el 2026-09-24 (ver
+  entrada de ese día): `INSERT ... RETURNING` de Prisma —que `.create()`
+  siempre usa— se filtra por la política de `SELECT`, así que nadie podía
+  crear un contribuyente hasta agregar `taxpayers.created_by`. Y el propio
+  ejemplo de política en ADR-004 hace *bypass* cuando la variable de sesión
+  está simplemente sin fijar, indistinguible de una consulta que alguien
+  olvidó envolver en `withUser()` — corregido con un id centinela que
+  `asAdmin()` debe fijar a propósito. Ver la nota de actualización agregada a
+  ADR-004 y CLAUDE.md → "Errores fáciles de cometer aquí".
+- **`SALES_NON_OBJECT_EXEMPT`** (encontrado en la auditoría del 2026-09-26,
+  sin corregir entonces): agregado a `RESULT_KEYS` y `calculator.ts`.
+- **`file-parser.ts` no coincidía con el formato verificado.** Columnas
+  inventadas (`DESCUENTO`, `ESTADO`, `NUMERO_COMPROBANTE`), faltaba
+  `RAZON_SOCIAL_EMISOR`. Arrastraba dos bugs: `ingestion-service.ts` verificaba
+  la consistencia de la clave de acceso contra la columna equivocada
+  (`COMPROBANTE`, el tipo de comprobante, en vez de `SERIE_COMPROBANTE`), y
+  `parseDate` no recortaba la hora de `FECHA_EMISION` en emitidas, invalidando
+  la fecha en silencio.
+- `requiresManualReview` tenía una segunda lista de tipos de comprobante
+  "estándar" que no coincidía con la lista blanca real de `ingestion-service.ts`
+  (ADR-010) — dos fuentes de verdad para la misma decisión. Unificado a una sola.
+
+### Sin decidir
+- `docs/guides/coding-guidelines.md` pide SQL crudo para el factor de
+  proporcionalidad; el dominio lo calcula en TypeScript puro, que es lo que
+  ADR-001 pide para probar el motor sin base de datos. La guía quedó sin
+  corregir — ver `NEXT_STEPS.md`.

@@ -1,0 +1,162 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { withUser } from '@/lib/db';
+import { parseFile, ingestionService } from '@/services/ingestion';
+import type { ReceivedInvoiceRow, IssuedInvoiceRow } from '@/services/ingestion';
+import crypto from 'crypto';
+
+// TODO: replace with real session lookup once auth is wired up.
+async function getCurrentUserId(): Promise<string> {
+  throw new Error('Auth not wired up yet');
+}
+
+export interface UploadResult {
+  success: boolean;
+  error?: string;
+  sourceFileId?: string;
+  fileType?: 'RECIBIDAS' | 'EMITIDAS';
+  totalRows?: number;
+  validCount?: number;
+  errorCount?: number;
+  results?: Array<{ isValid: boolean; errors: Array<{ field: string; message: string; code: string }> }>;
+}
+
+/**
+ * Paso 1 de la ingesta (ADR-011): parsea, valida y guarda comprobantes sin
+ * clasificar. Síncrono, reanudable — si algo falla después, nada se pierde.
+ */
+export async function uploadSourceFiles(
+  taxpayerId: string,
+  periodId: string,
+  formData: FormData
+): Promise<UploadResult> {
+  const userId = await getCurrentUserId();
+  const file = formData.get('file') as File | null;
+  if (!file) {
+    return { success: false, error: 'No se seleccionó ningún archivo' };
+  }
+
+  const content = await file.text();
+  const sha256 = crypto.createHash('sha256').update(content).digest('hex');
+  const parseResult = parseFile(content);
+
+  if (parseResult.errors.length > 0 && parseResult.rows.length === 0) {
+    return {
+      success: false,
+      error: 'No se pudo interpretar el formato del archivo',
+    };
+  }
+
+  return withUser(userId, async (tx) => {
+    const taxPeriod = await tx.taxPeriod.findFirstOrThrow({
+      where: { id: periodId, taxpayerId },
+    });
+
+    const existing = await tx.invoiceReceived.findMany({
+      where: { taxpayerId },
+      select: { accessKey: true },
+    });
+    const existingAccessKeys = new Set(existing.map((i) => i.accessKey));
+
+    const validationResults = parseResult.rows.map(
+      (row: ReceivedInvoiceRow | IssuedInvoiceRow) =>
+        parseResult.fileType === 'RECIBIDAS'
+          ? ingestionService.validateReceivedRow(
+              row as ReceivedInvoiceRow,
+              taxpayerId,
+              taxPeriod.periodStart,
+              taxPeriod.periodEnd,
+              existingAccessKeys
+            )
+          : ingestionService.validateIssuedRow(
+              row as IssuedInvoiceRow,
+              taxPeriod.periodStart,
+              taxPeriod.periodEnd,
+              existingAccessKeys
+            )
+    );
+
+    const sourceFile = await tx.sourceFile.create({
+      data: {
+        taxpayerId,
+        taxPeriodId: periodId,
+        kind: parseResult.fileType === 'RECIBIDAS' ? 'PURCHASES_TXT' : 'SALES_TXT',
+        filename: file.name,
+        sha256,
+        rowCount: parseResult.rows.length,
+        rowsImported: validationResults.filter((r) => r.isValid).length,
+        rowsRejected: validationResults.filter((r) => !r.isValid).length,
+        uploadedBy: userId,
+      },
+    });
+
+    for (let i = 0; i < parseResult.rows.length; i++) {
+      if (!validationResults[i].isValid) continue;
+      const row = parseResult.rows[i];
+
+      if (parseResult.fileType === 'RECIBIDAS') {
+        const r = row as ReceivedInvoiceRow;
+        await tx.invoiceReceived.upsert({
+          where: { taxpayerId_accessKey: { taxpayerId, accessKey: r.CLAVE_ACCESO } },
+          create: {
+            taxpayerId,
+            taxPeriodId: periodId,
+            sourceFileId: sourceFile.id,
+            accessKey: r.CLAVE_ACCESO,
+            supplierRuc: r.RUC_EMISOR,
+            supplierName: r.RAZON_SOCIAL_EMISOR,
+            documentType: r.TIPO_COMPROBANTE,
+            series: r.SERIE_COMPROBANTE,
+            issueDate: parseSriDate(r.FECHA_EMISION),
+            subtotal: r.VALOR_SIN_IMPUESTOS,
+            vatAmount: r.IVA,
+            total: r.IMPORTE_TOTAL,
+          },
+          update: {},
+        });
+      } else {
+        const r = row as IssuedInvoiceRow;
+        await tx.invoiceIssued.upsert({
+          where: { taxpayerId_accessKey: { taxpayerId, accessKey: r.CLAVE_ACCESO } },
+          create: {
+            taxpayerId,
+            taxPeriodId: periodId,
+            sourceFileId: sourceFile.id,
+            accessKey: r.CLAVE_ACCESO,
+            documentType: r.COMPROBANTE,
+            series: r.SERIE_COMPROBANTE,
+            issueDate: parseSriDate(r.FECHA_EMISION),
+            subtotal: r.VALOR_SIN_IMPUESTOS,
+            vatAmount: r.IVA,
+            total: r.IMPORTE_TOTAL,
+          },
+          update: {},
+        });
+      }
+    }
+
+    revalidatePath(`/${taxpayerId}/periodos/${periodId}/ingesta`);
+
+    return {
+      success: true,
+      sourceFileId: sourceFile.id,
+      fileType: parseResult.fileType,
+      totalRows: parseResult.rows.length,
+      validCount: validationResults.filter((r) => r.isValid).length,
+      errorCount: validationResults.filter((r) => !r.isValid).length,
+      results: validationResults,
+    };
+  });
+}
+
+export async function removeSourceFile(sourceFileId: string, taxpayerId: string, periodId: string) {
+  const userId = await getCurrentUserId();
+  await withUser(userId, (tx) => tx.sourceFile.delete({ where: { id: sourceFileId } }));
+  revalidatePath(`/${taxpayerId}/periodos/${periodId}/ingesta`);
+}
+
+function parseSriDate(value: string): Date {
+  const [day, month, year] = value.split(' ')[0].split('/').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}

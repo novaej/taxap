@@ -51,7 +51,7 @@ export interface IngestionReport {
 // Voucher Type Whitelist (ADR-010)
 // ============================================================================
 
-const VOUCHER_TYPE_WHITELIST = new Set([
+export const VOUCHER_TYPE_WHITELIST = new Set([
   '01', // Factura
   '02', // Nota de venta
   '03', // Liquidación de compra
@@ -111,7 +111,7 @@ export class IngestionService {
         verifyAccessKeyConsistency(
           accessKey,
           row.RUC_EMISOR,
-          row.SERIE,
+          row.SERIE_COMPROBANTE,
           this.parseDate(row.FECHA_EMISION)
         );
       } catch (err) {
@@ -206,13 +206,13 @@ export class IngestionService {
       }
     }
 
-    // 2. Access key consistency (serie extracted from COMPROBANTE)
+    // 2. Access key consistency
     if (errors.length === 0) {
       try {
         verifyAccessKeyConsistency(
           accessKey,
           '', // RUC is embedded in the access key for issued invoices
-          row.COMPROBANTE,
+          row.SERIE_COMPROBANTE,
           this.parseDate(row.FECHA_EMISION)
         );
       } catch (err) {
@@ -260,10 +260,12 @@ export class IngestionService {
   }
 
   /**
-   * Parse DD/MM/YYYY to Date.
+   * Parse DD/MM/YYYY to Date. EMITIDAS' FECHA_EMISION includes a time
+   * suffix ("DD/MM/AAAA HH:MM:SS") that RECIBIDAS does not — take only the
+   * date portion (docs/tax/formato-archivos-sri.md).
    */
   private parseDate(dateStr: string): Date {
-    const [day, month, year] = dateStr.split('/').map(Number);
+    const [day, month, year] = dateStr.split(' ')[0].split('/').map(Number);
     return new Date(year, month - 1, day);
   }
 }

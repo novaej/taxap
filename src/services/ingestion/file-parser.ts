@@ -2,8 +2,9 @@
  * SRI file format parser (tab-separated text files).
  * Parses comprobantes recibidos (received) and emitidos (issued).
  *
- * Format verified against: docs/tax/formato-archivos-sri.md
- * Files come from SRI portal downloads, one file per day per type.
+ * Format verified against real files: docs/tax/formato-archivos-sri.md
+ * (2026-09-20). Do not add columns beyond what that document lists —
+ * see CLAUDE.md -> "Verificación antes de tocar el formato del SRI".
  */
 
 import Decimal from 'decimal.js';
@@ -13,28 +14,34 @@ import Decimal from 'decimal.js';
 // ============================================================================
 
 export interface ReceivedInvoiceRow {
-  RUC_EMISOR: string; // Emitter's RUC
-  TIPO_COMPROBANTE: string; // 01-79 (whitelist in ADR-010)
-  SERIE: string; // NNN-NNN-NNNNNNNNN
-  NUMERO_COMPROBANTE: string; // 8 digits
-  FECHA_EMISION: string; // DD/MM/YYYY
-  CLAVE_ACCESO: string; // 49 digits
+  RUC_EMISOR: string;
+  RAZON_SOCIAL_EMISOR: string; // señal principal de clasificación
+  TIPO_COMPROBANTE: string; // lista blanca, ADR-010
+  SERIE_COMPROBANTE: string; // EEE-PPP-SSSSSSSSS
+  CLAVE_ACCESO: string; // 49 dígitos
+  FECHA_AUTORIZACION: string; // DD/MM/AAAA HH:MM:SS
+  FECHA_EMISION: string; // DD/MM/AAAA — determina el período, no autorización
+  IDENTIFICACION_RECEPTOR: string; // 10 o 13 dígitos
   VALOR_SIN_IMPUESTOS: Decimal;
-  IVA: Decimal;
-  DESCUENTO: Decimal;
-  VALOR_TOTAL: Decimal;
-  IDENTIFICACION_RECEPTOR: string; // Buyer's ID
-  ESTADO: string; // "Autorizado", "No autorizado", etc.
+  IVA: Decimal; // 0 en comprobantes sin IVA
+  IMPORTE_TOTAL: Decimal;
+  NUMERO_DOCUMENTO_MODIFICADO: string; // solo notas de crédito/débito
 }
 
+// ============================================================================
+// Issued Invoices (Ventas) - 8 columns. Estructura distinta, no el mismo
+// archivo con menos datos: no trae identificación del emisor ni receptor.
+// ============================================================================
+
 export interface IssuedInvoiceRow {
-  COMPROBANTE: string; // NNN-NNN-NNNNNNNNN
-  FECHA_EMISION: string; // DD/MM/YYYY
-  CLAVE_ACCESO: string; // 49 digits
+  COMPROBANTE: string; // nótese: no TIPO_COMPROBANTE
+  SERIE_COMPROBANTE: string;
+  CLAVE_ACCESO: string;
+  FECHA_AUTORIZACION: string;
+  FECHA_EMISION: string; // incluye hora en este archivo
   VALOR_SIN_IMPUESTOS: Decimal;
   IVA: Decimal;
-  DESCUENTO: Decimal;
-  VALOR_TOTAL: Decimal;
+  IMPORTE_TOTAL: Decimal;
 }
 
 export interface ParseResult<T> {
@@ -117,17 +124,17 @@ export function parseReceivedFile(
     try {
       const row: ReceivedInvoiceRow = {
         RUC_EMISOR: columns[0].trim(),
-        TIPO_COMPROBANTE: columns[1].trim(),
-        SERIE: columns[2].trim(),
-        NUMERO_COMPROBANTE: columns[3].trim(),
-        FECHA_EMISION: columns[4].trim(),
-        CLAVE_ACCESO: columns[5].trim(),
-        VALOR_SIN_IMPUESTOS: new Decimal(columns[6].trim()),
-        IVA: new Decimal(columns[7].trim()),
-        DESCUENTO: new Decimal(columns[8].trim()),
-        VALOR_TOTAL: new Decimal(columns[9].trim()),
-        IDENTIFICACION_RECEPTOR: columns[10].trim(),
-        ESTADO: columns[11].trim(),
+        RAZON_SOCIAL_EMISOR: columns[1].trim(),
+        TIPO_COMPROBANTE: columns[2].trim(),
+        SERIE_COMPROBANTE: columns[3].trim(),
+        CLAVE_ACCESO: columns[4].trim(),
+        FECHA_AUTORIZACION: columns[5].trim(),
+        FECHA_EMISION: columns[6].trim(),
+        IDENTIFICACION_RECEPTOR: columns[7].trim(),
+        VALOR_SIN_IMPUESTOS: new Decimal(columns[8].trim()),
+        IVA: new Decimal(columns[9].trim()),
+        IMPORTE_TOTAL: new Decimal(columns[10].trim()),
+        NUMERO_DOCUMENTO_MODIFICADO: columns[11].trim(),
       };
 
       rows.push(row);
@@ -191,12 +198,13 @@ export function parseIssuedFile(
     try {
       const row: IssuedInvoiceRow = {
         COMPROBANTE: columns[0].trim(),
-        FECHA_EMISION: columns[1].trim(),
+        SERIE_COMPROBANTE: columns[1].trim(),
         CLAVE_ACCESO: columns[2].trim(),
-        VALOR_SIN_IMPUESTOS: new Decimal(columns[3].trim()),
-        IVA: new Decimal(columns[4].trim()),
-        DESCUENTO: new Decimal(columns[5].trim()),
-        VALOR_TOTAL: new Decimal(columns[6].trim()),
+        FECHA_AUTORIZACION: columns[3].trim(),
+        FECHA_EMISION: columns[4].trim(),
+        VALOR_SIN_IMPUESTOS: new Decimal(columns[5].trim()),
+        IVA: new Decimal(columns[6].trim()),
+        IMPORTE_TOTAL: new Decimal(columns[7].trim()),
       };
 
       rows.push(row);

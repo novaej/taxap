@@ -16,48 +16,77 @@ compatible con S3. Sin decidir si se guardan indefinidamente.
 fija la postura de producto. El texto legal necesita revisión profesional antes de
 abrir a usuarios reales.
 
-**El código construido diverge de los specs pre-código.** `docs/data-model.md`,
-`docs/mvp-scope.md`, `docs/guides/code-flow.md`, `docs/guides/coding-guidelines.md`
-y `docs/site/screens/*.md` describen un diseño más elaborado que lo que hay hoy en
-`src/`: UUID v7 y columnas `snake_case` vs. `cuid()` y `camelCase` sin `@map`; tablas
-`plans` y `ai_usage` y campos como `trade_name`, `ai_enabled`, `classification_source`
-que no existen en `prisma/schema.prisma`; rutas `/[locale]/(app)/[taxpayerId]/...` con
-Server Actions y `next-intl` vs. rutas planas (`/ingesta`, `/ventas`…) con API routes
-REST y texto en inglés sin `next-intl` instalado; Tailwind + shadcn/ui vs. estilos
-inline. Las pantallas construidas (`src/app/{ingesta,ventas,conciliacion,
-predeclaracion}/`) son maquetas con datos de prueba, no implementaciones fieles de
-los specs — así que la regla de `docs/site/screens/README.md` ("al construir la
-pantalla, el spec se actualiza para reflejar lo real") todavía no aplicó de verdad.
-**Sin decidir:** si el código se corrige para seguir los specs, o los specs se
-actualizan para reflejar lo construido, o ambos se reconcilian a propósito antes de
-seguir. No tocar ninguno de los dos lados sin decidir esto primero.
-
 ## Verificaciones antes de construir
 
-- [ ] **`SALES_NON_OBJECT_EXEMPT` no se calcula.** `NON_OBJECT_EXEMPT` (431/441,
-      "no objeto o exenta") existe como destino que el usuario puede marcar
-      ([`SalesTreatment`](prisma/schema.prisma), pantalla de ventas emitidas,
-      [`formulario-104.md`](docs/tax/formulario-104.md) → tabla de resultados del
-      MVP), pero `src/domain/iva/calculator.ts` y `RESULT_KEYS` en
-      `src/domain/types.ts` no producen ese resultado. Una venta marcada así
-      desaparece de `period_results` sin aviso — no aparece en pre-declaración ni
-      cuenta en ningún total.
-- [x] **Prueba de RLS.** Verificado manualmente end-to-end contra la base real:
-      dos usuarios, dos contribuyentes, ninguno ve datos del otro; una consulta
-      sin `withUser()` no ve nada. La migración de RLS tenía dos fallos reales
-      hasta esta verificación — ninguno producía error, ambos dejaban el
-      aislamiento roto en silencio: (1) las políticas referenciaban columnas
-      `snake_case` que no existen (el esquema no tiene `@map`, las columnas son
-      `camelCase`); (2) faltaba `FORCE ROW LEVEL SECURITY` en cada tabla, así que
-      el rol `taxap` —dueño de las tablas por correr las migraciones— quedaba
-      exento de sus propias políticas. Corregido en
-      `prisma/migrations/20260924062837_add_rls/`. Ver
-      [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md) y CLAUDE.md → "Errores
-      fáciles de cometer aquí".
-      **Pendiente real:** no quedó un test de regresión permanente — la
-      verificación fue ad hoc y se descartó. Escribir uno
-      (`tests/rls/` según `docs/guides/coding-guidelines.md`) antes de tocar
+- [x] **Reconciliación código ↔ specs pre-código (2026-09-30).** El esquema,
+      el enrutado, el estilo y el idioma ya siguen `docs/data-model.md`,
+      `docs/site/screens/*.md` y `docs/guides/coding-guidelines.md`: UUID
+      nativo `uuidv7()` (PostgreSQL 18) con columnas `snake_case` vía `@map`;
+      tablas `plans`/`ai_usage` y los campos que faltaban; rutas
+      `/[locale]/(app)/[taxpayerId]/periodos/[periodId]/...` con Server
+      Actions (no más API routes REST); Tailwind 4 + shadcn/ui en vez de
+      estilos inline; texto en español vía `next-intl`
+      (`messages/es.json`), sin literales en los componentes.
+      **Se descartó una parte del spec en vez de seguirla:**
+      `docs/guides/coding-guidelines.md` pide SQL crudo para el factor de
+      proporcionalidad y los totales por casillero; el dominio ya los
+      calcula en TypeScript puro sobre `Decimal.js`
+      (`src/domain/iva/calculator.ts`, `proportionality.ts`), que es lo que
+      ADR-001 pide para poder probar el motor sin base de datos. La guía
+      quedó sin corregir — antes de tocarla, decidir si de verdad se quiere
+      mover esa lógica a SQL o si la guía es la que está desactualizada.
+- [x] **`SALES_NON_OBJECT_EXEMPT` no se calculaba.** `NON_OBJECT_EXEMPT`
+      (431/441) era un destino marcable sin resultado correspondiente en
+      `calculator.ts`/`RESULT_KEYS`. Agregado.
+- [x] **Prueba de RLS.** Verificado manualmente end-to-end contra la base real,
+      dos veces (antes y después de reconstruir el esquema): dos usuarios, dos
+      contribuyentes, ninguno ve datos del otro; una consulta sin `withUser()`
+      no ve nada. Se encontraron y corrigieron tres fallos reales en total,
+      ninguno con error visible:
+      1. Las políticas referenciaban columnas `snake_case` que no existían
+         (el esquema no tenía `@map`).
+      2. Faltaba `FORCE ROW LEVEL SECURITY`, así que el rol `taxap` —dueño de
+         las tablas por correr las migraciones— quedaba exento de sus propias
+         políticas.
+      3. El propio ejemplo de ADR-004 usa un *bypass* cuando la variable de
+         sesión está simplemente sin fijar — indistinguible de una consulta
+         que alguien olvidó envolver en `withUser()`. Corregido con un id
+         centinela explícito que `asAdmin()` debe fijar a propósito (ver nota
+         de actualización en el propio ADR-004).
+      Estado actual en `prisma/migrations/*_add_rls/`. Ver
+      [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md) y CLAUDE.md →
+      "Errores fáciles de cometer aquí".
+      **Pendiente real:** sigue sin existir un test de regresión permanente —
+      cada verificación fue ad hoc y se descartó. Escribir uno (`tests/rls/`
+      según `docs/guides/coding-guidelines.md`) antes de tocar
       `src/lib/db.ts` de nuevo.
+- [x] **`file-parser.ts` no coincidía con el formato verificado.** Tenía
+      columnas inventadas (`DESCUENTO`, `ESTADO`, `NUMERO_COMPROBANTE`) que no
+      están en `docs/tax/formato-archivos-sri.md`, y le faltaba
+      `RAZON_SOCIAL_EMISOR` — la "señal principal de clasificación" según ese
+      mismo documento. También se encontraron dos bugs reales derivados:
+      `ingestion-service.ts` pasaba `SERIE` (recibidas) y `COMPROBANTE`
+      (emitidas, que es el *tipo* de comprobante, no la serie) donde
+      correspondía `SERIE_COMPROBANTE`, y `parseDate` no recortaba la hora
+      que trae `FECHA_EMISION` en el archivo de emitidas, produciendo fechas
+      inválidas silenciosamente. Corregido; ver CLAUDE.md → "Errores fáciles
+      de cometer aquí".
+- [ ] **Autenticación no está conectada.** Cada `actions.ts` nuevo tiene un
+      `getCurrentUserId()` que lanza `Error('Auth not wired up yet')` — a
+      propósito, para que falle ruidosamente en vez de simular un usuario
+      falso. Bloquea probar cualquier pantalla de principio a fin.
+- [ ] **No hay pantalla de alta de contribuyente ni de selección de período.**
+      `docs/site/screens/README.md` las deja fuera de esta ronda a propósito.
+      Mientras tanto, la portada enlaza a un `taxpayerId`/`periodId` de
+      relleno (`/demo/periodos/demo/...`) que no existe en la base.
+- [ ] **Pantalla `admin-formulario.md` no construida.** Sigue siendo solo el
+      spec; nadie ha importado un formulario todavía.
+- [ ] **Bloqueo de período (ADR-013, segundo mecanismo) sin disparador.** Se
+      implementó el disparador de inmutabilidad de `classification_events`,
+      pero no el que debería rechazar modificaciones a comprobantes de un
+      `tax_period` con `locked_at` fijado. `lockPeriod()` marca el período
+      como `FILED` pero nada en la base impide editar sus comprobantes
+      todavía.
 - [ ] **Medir el paso de clasificación** con un período real y muchos proveedores
       nuevos. Si no cabe en una petición HTTP, entra pg-boss.
       ([ADR-011](docs/adr/011-ingesta-y-clasificacion-en-dos-pasos.md))
