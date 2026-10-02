@@ -65,27 +65,59 @@ export async function getPeriodResults(taxpayerId: string, periodId: string) {
 }
 
 /**
- * Cierre de período (ADR-013): fija locked_at. Un disparador rechaza toda
- * modificación posterior de los comprobantes de este período.
+ * Cierre de período (ADR-013): fija locked_at. Un disparador en Postgres
+ * rechaza toda modificación posterior de los comprobantes de este período
+ * (migración `*_add_period_lock`) -- no depende de que la aplicación se
+ * acuerde de revisarlo.
  */
 export async function lockPeriod(taxpayerId: string, periodId: string) {
   const userId = await getCurrentUserId();
-  await withUser(userId, (tx) =>
-    tx.taxPeriod.update({
+  await withUser(userId, async (tx) => {
+    const period = await tx.taxPeriod.findUniqueOrThrow({ where: { id: periodId } });
+    await tx.taxPeriod.update({
       where: { id: periodId },
       data: { status: 'FILED', filedAt: new Date(), lockedAt: new Date() },
-    })
-  );
+    });
+    await tx.classificationEvent.create({
+      data: {
+        taxpayerId,
+        taxPeriodId: periodId,
+        field: 'status',
+        oldValue: period.status,
+        newValue: 'FILED',
+        actorType: 'USER',
+        actorUserId: userId,
+        reason: 'Período marcado como declarado',
+      },
+    });
+  });
   revalidatePath(`/${taxpayerId}/periodos/${periodId}`);
 }
 
+/**
+ * Reapertura explícita (ADR-013): la reapertura en sí queda registrada,
+ * no solo lo que se edite después.
+ */
 export async function reopenPeriod(taxpayerId: string, periodId: string) {
   const userId = await getCurrentUserId();
-  await withUser(userId, (tx) =>
-    tx.taxPeriod.update({
+  await withUser(userId, async (tx) => {
+    const period = await tx.taxPeriod.findUniqueOrThrow({ where: { id: periodId } });
+    await tx.taxPeriod.update({
       where: { id: periodId },
       data: { status: 'DRAFT', lockedAt: null },
-    })
-  );
+    });
+    await tx.classificationEvent.create({
+      data: {
+        taxpayerId,
+        taxPeriodId: periodId,
+        field: 'status',
+        oldValue: period.status,
+        newValue: 'DRAFT',
+        actorType: 'USER',
+        actorUserId: userId,
+        reason: 'Período reabierto',
+      },
+    });
+  });
   revalidatePath(`/${taxpayerId}/periodos/${periodId}`);
 }

@@ -154,3 +154,26 @@ real de NextAuth (`/api/auth/callback/credentials`), sesión con `user.id`
 poblado, y las cuatro pantallas de período respondiendo 200 con un
 contribuyente y un período creados a mano para la prueba (todavía no hay
 pantalla de alta de contribuyente — ver `NEXT_STEPS.md`).
+
+## [2026-10-02] Bloqueo de período (ADR-013, segundo mecanismo)
+
+### Agregado
+- Disparador en `invoices_received`/`invoices_issued`
+  (`prisma/migrations/20261001000000_add_period_lock/`) que rechaza INSERT,
+  UPDATE y DELETE cuando `tax_periods.locked_at` está fijado. Vive en
+  Postgres, como el de inmutabilidad de `classification_events`, para que
+  ninguna consulta administrativa lo sortee. Verificado contra la base real:
+  las tres operaciones se bloquean con el período cerrado y funcionan de
+  nuevo tras reabrirlo.
+
+### Corregido
+- `lockPeriod()` y `reopenPeriod()` no registraban ningún evento. ADR-013
+  exige explícitamente que la reapertura quede registrada. Ambas acciones
+  ahora escriben un evento en `classification_events`.
+
+### Verificado (sin cambios de código)
+- El bloqueo del factor de proporcionalidad cuando no hay ventas
+  (denominador cero) ya estaba resuelto en `proportionality.ts` —
+  `NEXT_STEPS.md` lo tenía listado como pendiente por error. Lo único que
+  sigue abierto es una pregunta externa (qué espera el portal del SRI en el
+  563 en ese caso), ya marcada `[VERIFICAR]` en `formulario-104.md`.

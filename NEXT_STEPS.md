@@ -99,12 +99,17 @@ abrir a usuarios reales.
       verificación.
 - [ ] **Pantalla `admin-formulario.md` no construida.** Sigue siendo solo el
       spec; nadie ha importado un formulario todavía.
-- [ ] **Bloqueo de período (ADR-013, segundo mecanismo) sin disparador.** Se
-      implementó el disparador de inmutabilidad de `classification_events`,
-      pero no el que debería rechazar modificaciones a comprobantes de un
-      `tax_period` con `locked_at` fijado. `lockPeriod()` marca el período
-      como `FILED` pero nada en la base impide editar sus comprobantes
-      todavía.
+- [x] **Bloqueo de período (ADR-013, segundo mecanismo).** Disparador en
+      `invoices_received`/`invoices_issued` que rechaza INSERT, UPDATE y
+      DELETE cuando `tax_periods.locked_at` está fijado
+      (`prisma/migrations/20261001000000_add_period_lock/`). Verificado
+      contra la base real: las tres operaciones se bloquean con el período
+      cerrado y funcionan de nuevo tras reabrirlo.
+      **Encontrado al mismo tiempo:** `lockPeriod()`/`reopenPeriod()` no
+      escribían ningún evento en `classification_events` — ADR-013 exige
+      explícitamente que la reapertura quede registrada ("esa reapertura es
+      a su vez un evento registrado"). Corregido; ambas acciones ahora
+      escriben un evento.
 - [ ] **Medir el paso de clasificación** con un período real y muchos proveedores
       nuevos. Si no cabe en una petición HTTP, entra pg-boss.
       ([ADR-011](docs/adr/011-ingesta-y-clasificacion-en-dos-pasos.md))
@@ -116,7 +121,15 @@ abrir a usuarios reales.
       ([`docs/tax/formulario-104.md`](docs/tax/formulario-104.md) → *Pendiente de
       verificar*). Define si el sistema los entrega como valor a teclear o solo como
       contraste.
-- [ ] **Definir el factor cuando no hay ventas** (denominador cero).
+- [x] **Definir el factor cuando no hay ventas** (denominador cero).
+      `calculateProportionalityFactor` ya lo bloquea con una razón explícita
+      ("No sales in this period"), igual que el caso de ventas sin
+      clasificar — no inventa un valor. Lo que queda abierto no es una
+      decisión de dominio: es si el **portal** del SRI espera algo tecleado
+      en el 563 en ese caso, y eso sigue en
+      [`formulario-104.md`](docs/tax/formulario-104.md) → *Pendiente de
+      verificar*, marcado `[VERIFICAR]` porque requiere revisar el portal
+      real.
 - [ ] **Probar el emparejamiento contra el formulario real** antes de construir sobre él:
       que cada resultado del MVP caiga en el casillero esperado de
       [`formulario-104.md`](docs/tax/formulario-104.md). Es el riesgo principal de
