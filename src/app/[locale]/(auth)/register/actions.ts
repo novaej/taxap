@@ -9,9 +9,9 @@ export interface RegisterResult {
 }
 
 /**
- * Alta de usuario (mvp-scope.md §1). No crea contribuyente -- esa pantalla
- * está deferida a propósito (docs/site/screens/README.md -> Pendiente).
- * `users` no tiene RLS, así que esto corre contra `prisma` directo.
+ * Alta de usuario. No crea contribuyente -- esa pantalla está deferida a
+ * propósito (NEXT_STEPS.md -> Por construir). `users` no tiene RLS, así que
+ * esto corre contra `prisma` directo.
  */
 export async function registerUser(
   email: string,

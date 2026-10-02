@@ -10,7 +10,7 @@ import {
 import { Inbox, Receipt, ListChecks, FileCheck } from 'lucide-react';
 
 // No hay todavía pantalla de alta de contribuyente ni selector de período
-// (docs/site/screens/README.md -> Pendiente), así que estos enlaces usan un
+// (NEXT_STEPS.md -> Por construir), así que estos enlaces usan un
 // taxpayerId/periodId provisional hasta que esa pantalla exista.
 const DEMO_PATH = '/demo/periodos/demo';
 

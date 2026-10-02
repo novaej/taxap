@@ -16,9 +16,9 @@ export async function getPendingSales(taxpayerId: string, periodId: string) {
 }
 
 /**
- * Marca el destino de una o varias ventas con IVA = 0 (docs/site/screens/
- * ventas-emitidas.md). Cada marca escribe un evento en la bitácora
- * (ADR-013) — no hay marcado sin registro.
+ * Marca el destino de una o varias ventas con IVA = 0
+ * (docs/guides/code-flow.md -> Ventas emitidas). Cada marca escribe un
+ * evento en la bitácora (ADR-013) — no hay marcado sin registro.
  */
 export async function markSalesTreatment(
   invoiceIds: string[],

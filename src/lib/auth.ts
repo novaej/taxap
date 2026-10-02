@@ -1,5 +1,5 @@
 /**
- * NextAuth v5: correo y contraseña (mvp-scope.md §1), sesión JWT.
+ * NextAuth v5: correo y contraseña (docs/guides/code-flow.md -> Cuentas y acceso), sesión JWT.
  *
  * `users` no tiene RLS (data-model.md -> "Tablas bajo RLS" la excluye
  * explícitamente), así que authorize() consulta `prisma` directo, sin pasar

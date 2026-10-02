@@ -29,34 +29,49 @@ descarga del portal del SRI.
 
 ## Estado
 
-MVP en definición. Solo IVA mensual (formulario 104). Impuesto a la Renta,
-Retenciones y ATS están contemplados en el modelo de datos pero fuera de alcance
-— ver [`NEXT_STEPS.md`](NEXT_STEPS.md).
+MVP funcional para IVA mensual (formulario 104): registro, ingesta de
+archivos, clasificación de compras, marcado de ventas, cálculo de
+resultados y bloqueo de período funcionan de principio a fin contra una
+base real. Todavía sin pantalla de alta de contribuyente (el puente es
+`scripts/seed-test-taxpayer.ts`) ni de administración del formulario —
+ver [`NEXT_STEPS.md`](NEXT_STEPS.md) para el estado exacto.
+
+Impuesto a la Renta, Retenciones y ATS están contemplados en el modelo de
+datos pero fuera de alcance del MVP.
 
 ## Stack
+
+En uso hoy:
 
 | Capa | Tecnología |
 |---|---|
 | Framework | Next.js 16 (App Router), React 19, TypeScript |
 | UI | Tailwind CSS 4, shadcn/ui |
-| i18n | next-intl (es primario) |
+| i18n | next-intl (solo `es` por ahora) |
 | Base de datos | PostgreSQL 18+ (Docker en local) |
-| Acceso a datos | Prisma 7 + `@prisma/adapter-pg`; SQL crudo para agregaciones |
+| Acceso a datos | Prisma 7 + `@prisma/adapter-pg` |
+| Cálculo de IVA | Dominio puro en TypeScript/`Decimal.js` — sin SQL de agregación |
 | Aislamiento | Row-Level Security por usuario |
-| Autenticación | NextAuth v5 + bcryptjs |
-| IA (opcional) | Claude Haiku 4.5 vía Batch API; Opus 5 para escalamiento |
+| Autenticación | NextAuth v5 (credenciales) + bcryptjs |
+
+Planeado, no implementado todavía (ver [`NEXT_STEPS.md`](NEXT_STEPS.md)):
+
+| Capa | Tecnología |
+|---|---|
+| IA (clasificación nivel 3) | Claude Haiku 4.5 vía Batch API; Opus 5 para escalamiento |
 | Observabilidad | Sentry |
-| Despliegue | Por definir — ver `NEXT_STEPS.md` |
+| Despliegue | Por definir |
 
 ## Documentación
 
 | Documento | Contenido |
 |---|---|
-| [`GETTING_STARTED.md`](GETTING_STARTED.md) | Levantar el proyecto en local |
-| [`docs/mvp-scope.md`](docs/mvp-scope.md) | Qué entra y qué no, con criterios de aceptación |
+| [`GETTING_STARTED.md`](GETTING_STARTED.md) | Levantar el proyecto en local, de cero a corriendo |
+| [`docs/guides/code-flow.md`](docs/guides/code-flow.md) | Cómo funciona la app hoy, pantalla por pantalla |
 | [`docs/data-model.md`](docs/data-model.md) | Esquema comentado |
 | [`docs/adr/`](docs/adr/) | Decisiones de arquitectura y su justificación |
 | [`docs/tax/`](docs/tax/) | Referencia tributaria y formato de los archivos del SRI |
-| [`docs/guides/`](docs/guides/) | Cómo construir funcionalidades aquí |
+| [`docs/guides/coding-guidelines.md`](docs/guides/coding-guidelines.md) | Convenciones para escribir código aquí |
 | [`CLAUDE.md`](CLAUDE.md) | Reglas para asistentes de IA |
 | [`NEXT_STEPS.md`](NEXT_STEPS.md) | Pendientes y decisiones abiertas |
+| [`CHANGELOG.md`](CHANGELOG.md) | Historial de cambios |

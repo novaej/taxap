@@ -29,6 +29,10 @@ El CRUD simple (alta de contribuyente, edición de perfil) **no pasa por `domain
 Va directo en la Server Action o en `services/`. La capa de dominio existe para las
 reglas tributarias, no como ceremonia obligatoria.
 
+Autenticación (`src/lib/auth.ts`, `src/lib/session.ts`) y la base
+(`src/lib/db.ts`) son infraestructura — `lib/` — por la misma razón: no son
+reglas tributarias.
+
 ## Acceso a datos
 
 **Toda consulta de datos de contribuyentes pasa por el envoltorio de usuario.**
@@ -44,9 +48,13 @@ await db.invoicesReceived.findMany({ ... });
 La segunda forma compila y se ejecuta sin error. Ese es el problema.
 Ver [ADR-004](../adr/004-rls-por-usuario-con-prisma.md).
 
-**Prisma para CRUD y migraciones. SQL crudo para agregaciones.** Los totales por
-casillero y el factor de proporcionalidad se escriben en SQL: son más claros y más
-rápidos que el constructor de consultas. Van en `services/`, nunca en `domain/`.
+**Prisma para CRUD y migraciones. Las agregaciones (totales, factor de
+proporcionalidad) son TypeScript puro en `domain/`**
+(`src/domain/iva/calculator.ts`, `proportionality.ts`), no SQL — así se
+prueban sin base de datos, que es exactamente lo que pide
+[ADR-001](../adr/001-nextjs-monolito-con-capa-de-dominio.md). Las Server
+Actions (`src/app/.../actions.ts`) traen los comprobantes ya clasificados
+con Prisma y se los pasan al dominio; el dominio nunca toca la base.
 
 ## Dinero
 
@@ -94,11 +102,17 @@ Ver [ADR-012](../adr/012-tasas-y-casilleros-como-datos-con-vigencia.md).
 
 ## Pruebas
 
+No hay todavía un test runner configurado (ni jest ni vitest en
+`package.json`) — `src/services/ingestion/__tests__/file-parser.test.ts`
+existe pero no corre. Primer paso pendiente antes de que esta sección
+describa algo real: elegir runner e instalarlo.
+
+Convención prevista una vez exista:
+
 | Tipo | Ubicación | Necesita base de datos |
 |---|---|---|
-| Dominio | `tests/domain/` | No |
-| Integración | `tests/integration/` | Sí |
-| RLS | `tests/rls/` | Sí |
+| Dominio | `src/domain/**/__tests__/` | No |
+| RLS | `scripts/` (ver verificaciones ad hoc en `NEXT_STEPS.md`) | Sí |
 
 Las de dominio son el activo principal. Una regla tributaria nueva llega con sus
 casos límite cubiertos: factor cero, notas de crédito de otro período, comprobantes

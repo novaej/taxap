@@ -1,8 +1,8 @@
 /**
  * Crea un contribuyente y un período de prueba para una cuenta ya
  * registrada, y los vincula. No hay pantalla de alta de contribuyente
- * todavía (docs/site/screens/README.md la deja fuera de esta ronda), así
- * que esto es el puente manual mientras tanto.
+ * todavía (NEXT_STEPS.md -> Por construir), así que esto es el puente
+ * manual mientras tanto.
  *
  * Uso:
  *   npx tsx scripts/seed-test-taxpayer.ts correo@ejemplo.com

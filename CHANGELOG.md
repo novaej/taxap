@@ -177,3 +177,51 @@ pantalla de alta de contribuyente — ver `NEXT_STEPS.md`).
   `NEXT_STEPS.md` lo tenía listado como pendiente por error. Lo único que
   sigue abierto es una pregunta externa (qué espera el portal del SRI en el
   563 en ese caso), ya marcada `[VERIFICAR]` en `formulario-104.md`.
+
+## [2026-10-02] Documentación: de specs pre-código a documentación de lo real
+
+Con el MVP funcionando de principio a fin, los documentos escritos *antes*
+de que existiera código dejaron de ser la referencia correcta -- describían
+una intención, no lo construido, y habían divergido en varios puntos reales
+(convenciones de esquema, rutas, Server Actions vs. API routes REST). Esta
+entrada reemplaza esos documentos por otros que describen lo que la app
+hace hoy.
+
+### Eliminado
+- `docs/mvp-scope.md` — criterios de aceptación pre-construcción; su
+  contenido vigente ya vive en `README.md` (qué hace) y `NEXT_STEPS.md`
+  (qué queda fuera).
+- `docs/site/screens/` (5 specs + README) — contratos de pantalla
+  "antes de construirla". Reemplazados por
+  `docs/guides/code-flow.md`, que describe las rutas, Server Actions y
+  comportamiento reales de las cuatro pantallas construidas.
+- `docs/LOCAL-DEVELOPMENT.md` — fusionado en `GETTING_STARTED.md`. Tener dos
+  documentos de arranque fue la causa raíz del bug de `docker-compose.yml`
+  corregido el 2026-09-24; un solo archivo de inicio rápido evita que vuelva
+  a pasar.
+
+### Cambiado
+- `docs/guides/code-flow.md` reescrito por completo: recorrido real de las
+  cuatro pantallas (ingesta, ventas emitidas, conciliación,
+  pre-declaración) con rutas, Server Actions y nombres de archivo tal como
+  existen, no como se planeaban. Incluye qué falta (alta de contribuyente,
+  administración del formulario, niveles 2/3 de la cascada).
+- `docs/data-model.md` reescrito para coincidir exactamente con
+  `prisma/schema.prisma` — antes solo se había corregido la línea de
+  `uuidv7()`, el resto seguía describiendo el diseño pre-reconciliación
+  (nombres de tabla/campo que ya no existen, tablas que faltaban). Documenta
+  también `taxpayers.created_by`, que no está en el diseño original (ver
+  entrada del 2026-09-30).
+- `docs/guides/coding-guidelines.md`: corregida la instrucción de "SQL
+  crudo para agregaciones" (el dominio las calcula en TypeScript puro,
+  intencionalmente, por ADR-001); la sección de pruebas ahora dice que no
+  hay test runner configurado en vez de describir una convención
+  (`tests/domain/`, etc.) que nunca existió.
+- `README.md`: estado actualizado de "MVP en definición" a lo que
+  realmente funciona hoy; la tabla de stack separa lo que está en uso de lo
+  planeado (IA, Sentry, despliegue no están implementados todavía).
+- `CLAUDE.md`: el contexto obligatorio ya no apunta a `docs/mvp-scope.md`
+  (eliminado) sino a `docs/guides/code-flow.md`.
+- `NEXT_STEPS.md`: quitados todos los ítems ya resueltos (quedan en el
+  historial de este changelog, no duplicados ahí). Solo quedan decisiones
+  abiertas, trabajo por construir y verificación normativa pendiente.

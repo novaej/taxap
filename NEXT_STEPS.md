@@ -1,5 +1,7 @@
 # Pendientes
 
+Lo ya resuelto vive en [`CHANGELOG.md`](CHANGELOG.md), no aquí.
+
 ## Decisiones abiertas
 
 **Dónde desplegar.** DigitalOcean es la opción principal por experiencia previa
@@ -16,130 +18,48 @@ compatible con S3. Sin decidir si se guardan indefinidamente.
 fija la postura de producto. El texto legal necesita revisión profesional antes de
 abrir a usuarios reales.
 
-## Verificaciones antes de construir
+## Por construir
 
-- [x] **Reconciliación código ↔ specs pre-código (2026-09-30).** El esquema,
-      el enrutado, el estilo y el idioma ya siguen `docs/data-model.md`,
-      `docs/site/screens/*.md` y `docs/guides/coding-guidelines.md`: UUID
-      nativo `uuidv7()` (PostgreSQL 18) con columnas `snake_case` vía `@map`;
-      tablas `plans`/`ai_usage` y los campos que faltaban; rutas
-      `/[locale]/(app)/[taxpayerId]/periodos/[periodId]/...` con Server
-      Actions (no más API routes REST); Tailwind 4 + shadcn/ui en vez de
-      estilos inline; texto en español vía `next-intl`
-      (`messages/es.json`), sin literales en los componentes.
-      **Se descartó una parte del spec en vez de seguirla:**
-      `docs/guides/coding-guidelines.md` pide SQL crudo para el factor de
-      proporcionalidad y los totales por casillero; el dominio ya los
-      calcula en TypeScript puro sobre `Decimal.js`
-      (`src/domain/iva/calculator.ts`, `proportionality.ts`), que es lo que
-      ADR-001 pide para poder probar el motor sin base de datos. La guía
-      quedó sin corregir — antes de tocarla, decidir si de verdad se quiere
-      mover esa lógica a SQL o si la guía es la que está desactualizada.
-- [x] **`SALES_NON_OBJECT_EXEMPT` no se calculaba.** `NON_OBJECT_EXEMPT`
-      (431/441) era un destino marcable sin resultado correspondiente en
-      `calculator.ts`/`RESULT_KEYS`. Agregado.
-- [x] **Prueba de RLS.** Verificado manualmente end-to-end contra la base real,
-      dos veces (antes y después de reconstruir el esquema): dos usuarios, dos
-      contribuyentes, ninguno ve datos del otro; una consulta sin `withUser()`
-      no ve nada. Se encontraron y corrigieron tres fallos reales en total,
-      ninguno con error visible:
-      1. Las políticas referenciaban columnas `snake_case` que no existían
-         (el esquema no tenía `@map`).
-      2. Faltaba `FORCE ROW LEVEL SECURITY`, así que el rol `taxap` —dueño de
-         las tablas por correr las migraciones— quedaba exento de sus propias
-         políticas.
-      3. El propio ejemplo de ADR-004 usa un *bypass* cuando la variable de
-         sesión está simplemente sin fijar — indistinguible de una consulta
-         que alguien olvidó envolver en `withUser()`. Corregido con un id
-         centinela explícito que `asAdmin()` debe fijar a propósito (ver nota
-         de actualización en el propio ADR-004).
-      Estado actual en `prisma/migrations/*_add_rls/`. Ver
-      [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md) y CLAUDE.md →
-      "Errores fáciles de cometer aquí".
-      **Pendiente real:** sigue sin existir un test de regresión permanente —
-      cada verificación fue ad hoc y se descartó. Escribir uno (`tests/rls/`
-      según `docs/guides/coding-guidelines.md`) antes de tocar
-      `src/lib/db.ts` de nuevo.
-- [x] **`file-parser.ts` no coincidía con el formato verificado.** Tenía
-      columnas inventadas (`DESCUENTO`, `ESTADO`, `NUMERO_COMPROBANTE`) que no
-      están en `docs/tax/formato-archivos-sri.md`, y le faltaba
-      `RAZON_SOCIAL_EMISOR` — la "señal principal de clasificación" según ese
-      mismo documento. También se encontraron dos bugs reales derivados:
-      `ingestion-service.ts` pasaba `SERIE` (recibidas) y `COMPROBANTE`
-      (emitidas, que es el *tipo* de comprobante, no la serie) donde
-      correspondía `SERIE_COMPROBANTE`, y `parseDate` no recortaba la hora
-      que trae `FECHA_EMISION` en el archivo de emitidas, produciendo fechas
-      inválidas silenciosamente. Corregido; ver CLAUDE.md → "Errores fáciles
-      de cometer aquí".
-- [x] **Autenticación conectada (2026-10-01).** NextAuth v5 con `Credentials`
-      (correo + contraseña, `bcryptjs`, sesión JWT) — `src/lib/auth.ts`.
-      `getCurrentUserId()` (`src/lib/session.ts`) reemplaza el stub que
-      lanzaba en cada `actions.ts`; sigue lanzando si no hay sesión, ahora
-      por una razón real. `/login` y `/register` creados;
-      `src/proxy.ts` redirige a `/login` cualquier ruta bajo `/periodos/`
-      sin sesión. Verificado end-to-end contra la base real: registro,
-      login vía el endpoint real de NextAuth, y las cuatro pantallas
-      respondiendo 200 con un contribuyente y período reales.
-      **Encontrado en el camino:** `users.plan_code` no tenía a qué apuntar
-      — no existía ninguna fila en `plans` — así que ningún registro podía
-      completarse. Se creó `prisma/seed.ts` (antes no existía, pese a que
-      `package.json` ya tenía el script `db:seed` apuntándole) con los tres
-      planes; `db:reset` ahora lo corre automáticamente.
-      **Encontrado y corregido aparte:** el `middleware.ts` en la raíz del
-      proyecto nunca se ejecutaba — con directorio `src/`, Next.js espera el
-      archivo en `src/middleware.ts` — y además Next.js 16 renombró todo el
-      mecanismo a `proxy.ts` (`middleware.ts` queda deprecado). Movido a
-      `src/proxy.ts` con la función exportada como `proxy`.
-- [ ] **No hay pantalla de alta de contribuyente ni de selección de período.**
-      `docs/site/screens/README.md` las deja fuera de esta ronda a propósito.
-      Mientras tanto, la portada enlaza a un `taxpayerId`/`periodId` de
-      relleno (`/demo/periodos/demo/...`) que no existe en la base — para
-      probar de verdad hace falta crear el contribuyente y el período a mano
-      (`docker exec postgres18 psql ...`), como se hizo para esta
-      verificación.
-- [ ] **Pantalla `admin-formulario.md` no construida.** Sigue siendo solo el
-      spec; nadie ha importado un formulario todavía.
-- [x] **Bloqueo de período (ADR-013, segundo mecanismo).** Disparador en
-      `invoices_received`/`invoices_issued` que rechaza INSERT, UPDATE y
-      DELETE cuando `tax_periods.locked_at` está fijado
-      (`prisma/migrations/20261001000000_add_period_lock/`). Verificado
-      contra la base real: las tres operaciones se bloquean con el período
-      cerrado y funcionan de nuevo tras reabrirlo.
-      **Encontrado al mismo tiempo:** `lockPeriod()`/`reopenPeriod()` no
-      escribían ningún evento en `classification_events` — ADR-013 exige
-      explícitamente que la reapertura quede registrada ("esa reapertura es
-      a su vez un evento registrado"). Corregido; ambas acciones ahora
-      escriben un evento.
-- [ ] **Medir el paso de clasificación** con un período real y muchos proveedores
-      nuevos. Si no cabe en una petición HTTP, entra pg-boss.
-      ([ADR-011](docs/adr/011-ingesta-y-clasificacion-en-dos-pasos.md))
-- [ ] **Completar `docs/tax/formato-archivos-sri.md`** con archivos que incluyan
-      notas de crédito, notas de débito y comprobantes de retención.
+- [ ] **Alta de contribuyente y selección de período.** No existe pantalla
+      todavía — `scripts/seed-test-taxpayer.ts` es el puente manual mientras
+      tanto. Sin esto, nadie puede usar la app sin tocar la base de datos a
+      mano.
+- [ ] **Administración del formulario** (`ADMIN`, importación de PDF,
+      ADR-015). No se ha importado ningún formulario; `form_versions` y
+      `form_fields` están vacías.
+- [ ] **Test de regresión de RLS.** Se ha verificado manualmente contra la
+      base real varias veces, pero no queda como artefacto reproducible
+      (`tests/rls/`, según `docs/guides/coding-guidelines.md`). Escribir uno
+      antes de tocar `src/lib/db.ts` de nuevo.
+- [ ] **Medir el paso de clasificación** con un período real y muchos
+      proveedores nuevos. Si no cabe en una petición HTTP, entra pg-boss
+      ([ADR-011](docs/adr/011-ingesta-y-clasificacion-en-dos-pasos.md)).
+
+## Verificación normativa pendiente
+
+Nada de esto se resuelve con código — requiere archivos reales del SRI,
+revisar el portal, o confirmar una fecha de vigencia:
+
+- [ ] **Completar `docs/tax/formato-archivos-sri.md`** con archivos que
+      incluyan notas de crédito, notas de débito y comprobantes de retención.
 - [ ] **Verificar y cargar `tax_rates`** con fechas de vigencia y fuente.
 - [ ] **Verificar con el portal** si 563/564/565 y los totales (409/419/429,
       509/519/529) los calcula el portal a partir de lo ingresado
-      ([`docs/tax/formulario-104.md`](docs/tax/formulario-104.md) → *Pendiente de
-      verificar*). Define si el sistema los entrega como valor a teclear o solo como
-      contraste.
-- [x] **Definir el factor cuando no hay ventas** (denominador cero).
-      `calculateProportionalityFactor` ya lo bloquea con una razón explícita
-      ("No sales in this period"), igual que el caso de ventas sin
-      clasificar — no inventa un valor. Lo que queda abierto no es una
-      decisión de dominio: es si el **portal** del SRI espera algo tecleado
-      en el 563 en ese caso, y eso sigue en
-      [`formulario-104.md`](docs/tax/formulario-104.md) → *Pendiente de
-      verificar*, marcado `[VERIFICAR]` porque requiere revisar el portal
-      real.
-- [ ] **Probar el emparejamiento contra el formulario real** antes de construir sobre él:
-      que cada resultado del MVP caiga en el casillero esperado de
-      [`formulario-104.md`](docs/tax/formulario-104.md). Es el riesgo principal de
-      [ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md): un valor correcto
-      junto al casillero incorrecto.
-- [ ] **Sanitizar el PDF de muestra** para usarlo como fixture de pruebas del parser
-      ([ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md)). El original
-      trae datos personales y no se versiona.
-- [ ] **Verificar con un archivo real** si los comprobantes de retención recibidos
-      alimentan el casillero 609.
+      ([`docs/tax/formulario-104.md`](docs/tax/formulario-104.md) → *Pendiente
+      de verificar*). Incluye qué espera el portal cuando el denominador del
+      factor es cero (el dominio ya bloquea ese caso con una razón explícita;
+      lo que falta es si el portal necesita algo tecleado de todas formas).
+- [ ] **Probar el emparejamiento contra el formulario real** antes de
+      construir sobre él: que cada resultado del MVP caiga en el casillero
+      esperado de [`formulario-104.md`](docs/tax/formulario-104.md). Es el
+      riesgo principal de
+      [ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md): un
+      valor correcto junto al casillero incorrecto.
+- [ ] **Sanitizar el PDF de muestra** para usarlo como fixture de pruebas del
+      parser ([ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md)).
+      El original trae datos personales y no se versiona.
+- [ ] **Verificar con un archivo real** si los comprobantes de retención
+      recibidos alimentan el casillero 609.
 
 ## Fuera del MVP
 
@@ -169,7 +89,7 @@ abrir a usuarios reales.
 - Facturación y cobro de suscripciones.
 - Comparativa entre períodos, para detectar variaciones anómalas.
 - Exportación a Excel o PDF del borrador.
-- Inglés. `next-intl` está desde el inicio; faltan los mensajes.
+- Inglés. `next-intl` está desde el inicio; falta `messages/en.json`.
 
 ### Técnico
 - Ingesta de XML de comprobantes, que sí trae detalle de líneas. Convivirá con el

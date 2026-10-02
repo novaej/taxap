@@ -1,8 +1,8 @@
 # Reglas para asistentes de IA
 
 Contexto obligatorio antes de escribir código aquí:
-[`docs/mvp-scope.md`](docs/mvp-scope.md), [`docs/data-model.md`](docs/data-model.md)
-y [`docs/adr/`](docs/adr/).
+[`docs/guides/code-flow.md`](docs/guides/code-flow.md) (cómo funciona la app hoy),
+[`docs/data-model.md`](docs/data-model.md) y [`docs/adr/`](docs/adr/).
 
 ---
 

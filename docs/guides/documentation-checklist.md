@@ -17,7 +17,7 @@ Qué actualizar según el tipo de cambio.
 
 - [ ] `src/app/[locale]/(app)/.../page.tsx`
 - [ ] `messages/es.json` — sin literales en los componentes
-- [ ] `docs/site/screens/{nombre}.md`
+- [ ] `docs/guides/code-flow.md` — agregar la pantalla al recorrido
 - [ ] Verificar el vocabulario contra [ADR-014](../adr/014-caracter-asistivo-y-disclaimers.md)
 - [ ] `CHANGELOG.md`
 
@@ -64,10 +64,8 @@ Qué actualizar según el tipo de cambio.
 |---|---|
 | `docs/adr/` | Se toma una decisión de arquitectura |
 | `docs/data-model.md` | Cambia el esquema |
-| `docs/mvp-scope.md` | Cambia el alcance |
 | `docs/tax/` | Cambia o se verifica un valor normativo |
-| `docs/guides/code-flow.md` | Cambia el recorrido de un período |
-| `docs/site/screens/` | Se agrega o modifica una pantalla |
+| `docs/guides/code-flow.md` | Cambia el recorrido de un período, o se agrega/modifica una pantalla |
 | `CLAUDE.md` | Nueva regla dura o error recurrente |
 | `CHANGELOG.md` | Cada cambio |
 | `NEXT_STEPS.md` | Se completa o se descubre un pendiente |

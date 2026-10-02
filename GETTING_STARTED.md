@@ -32,6 +32,14 @@ Crear el usuario `taxap` y la base `taxap_dev`:
 ./scripts/setup-db.sh postgres18 taxap "taxap_dev_password"
 ```
 
+| Parámetro | Valor |
+|---|---|
+| Host | `localhost` |
+| Puerto | `5432` |
+| Usuario | `taxap` |
+| Contraseña | `taxap_dev_password` |
+| Base | `taxap_dev` |
+
 > **El usuario `taxap` no es superusuario, y no debe serlo.** Los superusuarios de
 > PostgreSQL ignoran la Row-Level Security de forma incondicional, incluso con
 > `FORCE ROW LEVEL SECURITY`. Un despliegue mal configurado que use el usuario
@@ -46,8 +54,8 @@ docker exec postgres18 psql -U taxap -d taxap_dev \
 # debe devolver: f
 ```
 
-Más detalle (reinicio desde cero, credenciales, acceso via `psql`/Prisma Studio)
-en [`docs/LOCAL-DEVELOPMENT.md`](docs/LOCAL-DEVELOPMENT.md).
+El `taxap` role tiene permiso `CREATEDB` (lo necesita Prisma para la shadow
+database durante las migraciones) pero no es superusuario.
 
 ## 2. Variables de entorno
 
@@ -59,6 +67,15 @@ Generar el secreto de autenticación:
 
 ```bash
 openssl rand -base64 32
+```
+
+`.env.local` queda así (no se versiona):
+
+```
+DATABASE_URL="postgresql://taxap:taxap_dev_password@localhost:5432/taxap_dev?schema=public"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="<el secreto generado arriba>"
+ANTHROPIC_API_KEY=""
 ```
 
 `ANTHROPIC_API_KEY` es **opcional**. Sin ella, el sistema funciona en modo sin IA:
@@ -87,7 +104,44 @@ se verifiquen — ver [`docs/tax/`](docs/tax/).
 npm run dev
 ```
 
-http://localhost:3000
+http://localhost:3000 → redirige a `/es` (único locale por ahora).
+
+## 5. Crear una cuenta y un contribuyente de prueba
+
+1. Registrarse en `/es/register` e iniciar sesión en `/es/login`.
+2. No existe todavía una pantalla de alta de contribuyente ni de selección de
+   período ([`NEXT_STEPS.md`](NEXT_STEPS.md)). El puente mientras tanto:
+
+   ```bash
+   npm run seed:test-taxpayer -- tu-correo@ejemplo.com
+   ```
+
+   Imprime las URLs directas a las cuatro pantallas (ingesta, ventas
+   emitidas, conciliación, pre-declaración) para un contribuyente y período
+   de prueba ya vinculados a esa cuenta.
+
+## Comandos de base de datos
+
+| Comando | Qué hace |
+|---|---|
+| `npm run db:migrate` | Aplica migraciones pendientes (`prisma migrate dev`) |
+| `npm run db:seed` | Siembra los planes (`prisma/seed.ts`) |
+| `npm run db:reset` | Borra todo en `public` (tablas, tipos, funciones) y vuelve a migrar + sembrar. Bloqueado si `NODE_ENV=production`. |
+| `npm run seed:test-taxpayer -- <correo>` | Crea un contribuyente + período de prueba para una cuenta ya registrada |
+
+Acceso directo a la base, si hace falta:
+
+```bash
+# Como el usuario de la app
+PGPASSWORD="taxap_dev_password" psql -h localhost -U taxap -d taxap_dev
+
+# Como superusuario (para tareas administrativas, nunca para la app)
+docker exec postgres18 psql -U postgres -d taxap_dev
+
+# Prisma Studio
+export $(cat .env.local | xargs)
+npx prisma studio
+```
 
 ## Verificación de que la RLS funciona
 
@@ -103,8 +157,9 @@ docker exec postgres18 psql -U postgres -d taxap_dev -c "
   SELECT relname, relrowsecurity, relforcerowsecurity
   FROM pg_class
   WHERE relname IN (
-    'taxpayers', 'tax_periods', 'source_files', 'invoices_received',
-    'invoices_issued', 'supplier_rules', 'classification_events', 'period_results'
+    'taxpayers', 'user_taxpayers', 'tax_periods', 'source_files',
+    'invoices_received', 'invoices_issued', 'supplier_rules',
+    'classification_events', 'period_results'
   );
 "
 # las tres columnas deben ser 't' en cada fila
@@ -117,8 +172,8 @@ permitido para tocar estas tablas. **Si esta prueba no pasa, el aislamiento
 entre clientes no existe.** Ver [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
 
 > Pendiente: no hay todavía un script de regresión permanente para esto —
-> la verificación de tenant-aislamiento se hizo ad hoc y no quedó como
-> artefacto reproducible. Escribir uno antes de tocar `src/lib/db.ts` de nuevo.
+> cada verificación se hizo ad hoc y no quedó como artefacto reproducible.
+> Ver [`NEXT_STEPS.md`](NEXT_STEPS.md).
 
 ## Datos de prueba
 
@@ -128,11 +183,30 @@ Colocarlos en `samples/`, que está en `.gitignore`.
 Para el formato esperado, ver
 [`docs/tax/formato-archivos-sri.md`](docs/tax/formato-archivos-sri.md).
 
+## Resetear desde cero
+
+```bash
+export $(cat .env.local | xargs)
+npm run db:reset
+```
+
+Equivalente manual si hiciera falta:
+
+```bash
+docker exec postgres18 psql -U postgres -c "DROP DATABASE taxap_dev;"
+./scripts/setup-db.sh postgres18 taxap "taxap_dev_password"
+npm run db:migrate
+npm run db:seed
+```
+
 ## Problemas frecuentes
 
 **`connection refused` en el puerto 5432.** Hay otro PostgreSQL local ocupando el
 puerto. Revisar qué hay corriendo con `docker ps` antes de crear un contenedor
 nuevo — probablemente ya existe uno que se puede reutilizar.
+
+**El registro falla / `plan_code` no tiene a qué apuntar.** No se corrió
+`npm run db:seed`. `users.plan_code` es una FK a `plans.code`.
 
 **Las consultas devuelven datos de otros usuarios.** El usuario de base de datos es
 superusuario, falta `FORCE ROW LEVEL SECURITY` en la tabla, o el código está
@@ -143,3 +217,8 @@ Ver [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
 está fijada con un valor que no corresponde, o la transacción envolvente no está
 abierta — `withUser()` debe correr el `SET` y la consulta dentro del mismo
 `$transaction`, nunca como llamadas separadas contra una conexión pooled.
+
+**Una ruta bajo `/periodos/` no redirige a `/login` sin sesión.** Revisar que
+el archivo de proxy esté en `src/proxy.ts` (no en la raíz del proyecto ni
+llamado `middleware.ts` — Next.js 16 renombró la convención; con un
+directorio `src/`, solo reconoce `src/proxy.ts`).

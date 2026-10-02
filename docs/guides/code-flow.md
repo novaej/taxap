@@ -1,138 +1,186 @@
-# Ciclo de vida de un período
+# Cómo funciona taxap
 
-Recorrido completo desde que el usuario descarga los archivos hasta que obtiene
-el borrador. Para el detalle de cada decisión, los ADRs enlazados.
+Recorrido real de un período, pantalla por pantalla, con las rutas y Server
+Actions tal como existen en el código hoy. Para el porqué de cada decisión,
+los ADRs enlazados — este documento describe el *qué*, no el *por qué*.
 
 ---
 
-## 1. El usuario descarga del SRI
+## Cuentas y acceso
 
-Fuera del sistema. El portal del SRI solo permite consultar **por día**, así que un
-período mensual puede requerir 31 archivos por tipo.
+NextAuth v5, correo y contraseña (`src/lib/auth.ts`), sesión JWT,
+`bcryptjs` para el hash.
 
-Producto: archivos `.txt` separados por tabulación, en dos formatos distintos
-(recibidos y emitidos). Ver
-[`../tax/formato-archivos-sri.md`](../tax/formato-archivos-sri.md).
+- **Registro** — `/[locale]/register` → `registerUser()` crea el usuario
+  directamente contra `prisma` (la tabla `users` no tiene RLS). No crea
+  ningún contribuyente.
+- **Login** — `/[locale]/login`.
+- **Protección de rutas** — `src/proxy.ts` redirige a `/login` cualquier
+  ruta bajo `/periodos/` sin sesión. Next.js 16 renombró la convención de
+  `middleware.ts` a `proxy.ts`; con un directorio `src/`, además, solo
+  reconoce el archivo dentro de `src/`.
 
-## 2. Carga
+**No existe todavía** una pantalla de alta de contribuyente ni de selección
+de período ([`NEXT_STEPS.md`](../../NEXT_STEPS.md)). El puente manual es
+`scripts/seed-test-taxpayer.ts`.
 
-`app/[locale]/(app)/[taxpayerId]/ingesta` → Server Action → `services/ingestion`
+## Acceso a datos
 
-La pantalla acepta **varios archivos a la vez** y permite agregar más a un período
-ya iniciado.
+Toda consulta sobre tablas de contribuyentes pasa por `withUser(userId, fn)`
+(`src/lib/db.ts`), que fija `app.current_user_id` con `SET LOCAL` dentro de
+un único `$transaction` — nunca como dos llamadas sueltas, porque con un
+pool de conexiones el `SET` y la consulta podrían caer en conexiones
+distintas y la RLS se perdería en silencio. `asAdmin(fn)` existe para rutas
+sin usuario (sembrado, tareas administrativas) y fija un id centinela
+explícito, nunca `RESET` — una variable sin fijar debe fallar cerrado, no
+abierto. Ver [ADR-004](../adr/004-rls-por-usuario-con-prisma.md).
+
+## 1. Ingesta
+
+**Ruta:** `/[locale]/(app)/[taxpayerId]/periodos/[periodId]/ingesta`
+**Server Action:** `uploadSourceFiles()` (`ingesta/actions.ts`)
+**Capas:** página → `services/ingestion` (parseo y validación) →
+`domain/iva/access-key` (consistencia de la clave de acceso) → `withUser()`
+
+Un archivo a la vez por ahora (el layout de carga múltiple del SRI —
+`samples/`, un archivo por día — sigue pendiente de UI).
 
 Por archivo:
-1. Calcular `sha256`. Si ya fue cargado idéntico, se avisa y se omite.
-2. Detectar el formato por las columnas del encabezado.
-3. Registrar en `source_files`.
+1. Calcular `sha256` y detectar el formato por las columnas del encabezado
+   (`detectFileType` — 12 columnas con `RUC_EMISOR` = recibidas, 8 con
+   `COMPROBANTE` = emitidas). Ver
+   [`../tax/formato-archivos-sri.md`](../tax/formato-archivos-sri.md).
+2. Registrar en `source_files`.
 
-Por fila:
-1. Descomponer la `CLAVE_ACCESO` y contrastarla con fecha, tipo, RUC y serie.
-   Si no concuerda, se rechaza y se reporta.
-2. Verificar que el comprobante pertenece al contribuyente seleccionado
-   (compras: `IDENTIFICACION_RECEPTOR`; ventas: el RUC dentro de la clave).
-   **Si no coincide, se aborta la carga completa** — el usuario subió el archivo de
-   otro cliente.
+Por fila (`ingestionService.validateReceivedRow`/`validateIssuedRow`):
+1. Descomponer la `CLAVE_ACCESO` y contrastarla con fecha, tipo, RUC y serie
+   ([ADR-009](../adr/009-clave-de-acceso-como-clave-de-deduplicacion.md)).
+2. Verificar que el comprobante pertenece al contribuyente del período
+   (recibidos: `IDENTIFICACION_RECEPTOR`; emitidos: el RUC dentro de la
+   clave).
 3. Verificar que `FECHA_EMISION` cae dentro del período.
-4. Verificar el tipo contra la lista blanca
-   ([ADR-010](../adr/010-tratamiento-por-tipo-de-comprobante.md)).
-   Tipo desconocido → bandeja, nunca descarte silencioso.
-5. Insertar ignorando conflictos sobre `(taxpayer_id, access_key)`.
+4. Verificar el tipo contra la lista blanca de
+   `services/ingestion/ingestion-service.ts` →
+   `VOUCHER_TYPE_WHITELIST` ([ADR-010](../adr/010-tratamiento-por-tipo-de-comprobante.md)).
+   Tipo desconocido → advertencia, no rechazo; cae a revisión manual en el
+   paso de clasificación.
+5. Insertar vía `upsert` sobre `(taxpayer_id, access_key)` — resubir el
+   mismo archivo no duplica nada.
 
-Los archivos solo con encabezado (días sin movimiento) se aceptan sin error.
+**Al terminar, los comprobantes quedan guardados con
+`processing_status = UNCLASSIFIED`.** Si algo falla después, nada se pierde
+([ADR-011](../adr/011-ingesta-y-clasificacion-en-dos-pasos.md)).
 
-**Al terminar, los comprobantes están guardados sin clasificar.** Si algo falla
-después, nada se pierde. ([ADR-011](../adr/011-ingesta-y-clasificacion-en-dos-pasos.md))
+## 2. Ventas emitidas
 
-## 3. Clasificación
+**Ruta:** `.../ventas`
+**Server Actions:** `getPendingSales()`, `markSalesTreatment()`
+(`ventas/actions.ts`)
 
-Paso separado, disparado por el usuario y **reanudable**: volver a ejecutarlo
-continúa donde quedó.
+El archivo de emitidos no distingue por qué una venta tiene `IVA = 0`
+(exportación, 0% con o sin derecho a crédito, no objeto/exenta) ni trae
+cliente o concepto. Esta pantalla es donde el usuario resuelve esa
+ambigüedad.
 
-Solo entran los comprobantes con `IVA > 0`. Los de `IVA = 0` se marcan
-`NOT_APPLICABLE` y salen de la cascada
+- Ventas con `IVA > 0` quedan como `TAXED` automáticamente.
+- Ventas con `IVA = 0` empiezan en `UNCLASSIFIED` y el usuario marca cada
+  una (o varias a la vez) con su destino real. Cada marca llama a
+  `markSalesTreatment()`, que actualiza `invoices_issued.sales_treatment` y
+  escribe un evento en `classification_events`
+  ([ADR-013](../adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md)).
+
+El factor de proporcionalidad (pantalla de pre-declaración) no se calcula
+mientras quede alguna venta `UNCLASSIFIED`.
+
+## 3. Conciliación
+
+**Ruta:** `.../conciliacion`
+**Server Actions:** `getPurchasesByStatus()`, `classifyPeriod()`,
+`applyManualClassification()` (`conciliacion/actions.ts`)
+
+Solo entran aquí comprobantes con `IVA > 0`
 ([ADR-008](../adr/008-solo-totales-sin-detalle-de-lineas.md)).
 
-Se agrupan **por proveedor**, no por comprobante:
+**`classifyPeriod()`** — paso 2 de la ingesta
+([ADR-011](../adr/011-ingesta-y-clasificacion-en-dos-pasos.md)): agrupa los
+comprobantes `UNCLASSIFIED` por proveedor y corre la cascada de
+`classificationCascade.classify()`
+([ADR-005](../adr/005-clasificacion-en-cascada.md)):
 
 ```
-┌─ Nivel 1 ── supplier_rules (contribuyente, proveedor, huella de actividad)
+┌─ Nivel 1 ── supplier_rules (contribuyente, proveedor) — no revocada
 │             ↓ sin coincidencia
-├─ Nivel 2 ── shared_supplier_catalog, si supera el umbral de acuerdo
+├─ Nivel 2 ── catálogo compartido (requiere 3+ de acuerdo) — []  aún no implementado, ADR-007
 │             ↓ sin coincidencia
-├─ Nivel 3 ── IA, si ai_enabled. Salida estructurada, por proveedor
-│             ↓ confianza por debajo del umbral
-└─ Nivel 4 ── bandeja de revisión manual
+├─ Nivel 3 ── IA — null  aún no implementado, ADR-007
+│             ↓ sin coincidencia
+└─ Nivel 4 ── bandeja de revisión manual (processing_status = REQUIRES_MANUAL_REVIEW)
 ```
 
-El veredicto del grupo se aplica a todos los comprobantes de ese proveedor. Cada
-uno recibe un evento en `classification_events`.
+Un tipo de comprobante fuera de la lista blanca en el grupo manda todo el
+proveedor a revisión manual sin pasar por la cascada
+(`requiresManualReview()`, que toma el único booleano que ya calculó la
+ingesta — no hay una segunda lista de "tipos estándar" por separado).
 
-## 4. Conciliación
+**`applyManualClassification()`** — clasificación manual, individual o en
+bloque:
+1. Actualiza `iva_category` y `processing_status = PROCESSED`.
+2. Escribe un evento en `classification_events`.
+3. Crea o actualiza la regla del proveedor (nivel 1) — el ciclo de
+   retroalimentación: lo corregido hoy se aplica solo (sin IA) el período
+   que viene.
 
-`app/[locale]/(app)/[taxpayerId]/conciliacion`
+## 4. Pre-declaración
 
-Tres estados, con acciones masivas: con crédito, como costo o gasto, y pendientes.
+**Ruta:** `/[locale]/(app)/[taxpayerId]/periodos/[periodId]` (la raíz del
+período)
+**Server Actions:** `computePeriodResults()`, `lockPeriod()`,
+`reopenPeriod()` (`actions.ts` del período)
 
-Cada decisión del usuario:
-1. Actualiza el comprobante.
-2. Escribe un evento en la bitácora, con autor.
-3. **Crea o actualiza la regla de nivel 1.**
+**`computePeriodResults()`** llama a `calculatePeriodResults()`
+(`src/domain/iva/calculator.ts`) sobre los comprobantes del período — pura
+lógica de dominio, sin SQL de agregación, probada sin base de datos
+([ADR-001](../adr/001-nextjs-monolito-con-capa-de-dominio.md)) — y guarda
+cada resultado en `period_results`. El dominio produce **claves estables**
+(`SALES_TAXED`, `PURCHASES_WITH_CREDIT`, `PROPORTIONALITY_FACTOR`…) y no
+conoce números de casillero
+([ADR-015](../adr/015-definicion-del-formulario-desde-pdf.md)).
 
-El tercer punto es el ciclo de retroalimentación: lo corregido hoy se aplica solo
-el mes que viene ([ADR-005](../adr/005-clasificacion-en-cascada.md)).
+El factor de proporcionalidad
+(`src/domain/iva/proportionality.ts`) cuenta exportaciones y ventas 0% con
+derecho a crédito en el numerador; un contribuyente que solo exporta
+servicios tiene factor `1.0000`
+([`../tax/formulario-104.md`](../tax/formulario-104.md)). Se bloquea —con
+una razón explícita, nunca un número inventado— si hay ventas sin marcar o
+si no hay ventas en el período (denominador cero).
 
-## 5. Factor de proporcionalidad
+**La relación resultado → casillero del formulario (`result_mappings`,
+ADR-015) no está implementada todavía:** la pantalla de administración que
+importa el PDF y calcula esa relación no existe
+([`NEXT_STEPS.md`](../../NEXT_STEPS.md)). Hoy la pantalla muestra las
+claves del dominio directamente, no el casillero ni el nombre oficial del
+campo.
 
-`services/declaration` → `domain/iva/proportionality`
+**`lockPeriod()`** fija `tax_periods.status = FILED` y `locked_at`, y
+escribe un evento. Un disparador en Postgres
+(`prisma/migrations/*_add_period_lock/`) rechaza INSERT, UPDATE y DELETE
+sobre `invoices_received`/`invoices_issued` del período mientras esté
+bloqueado — vive en la base, no en la aplicación, para que ningún camino lo
+sortee ([ADR-013](../adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md)).
 
-Se calcula de la composición de las **ventas** del período. Los insumos se guardan
-en `tax_periods.factor_inputs` para que el número sea verificable.
+**`reopenPeriod()`** limpia `status`/`locked_at` y también escribe un
+evento — la reapertura en sí queda registrada, no solo lo que se edite
+después.
 
-El dominio calcula el factor con su propia lógica. Exportaciones y ventas 0% con
-derecho a crédito cuentan como ventas que dan derecho a crédito; las 0% sin derecho
-y las no objeto o exentas, no. Un contribuyente que solo exporta servicios tiene
-factor `1.0000` ([`../tax/formulario-104.md`](../tax/formulario-104.md)).
+## Pendiente de construir
 
-El archivo de emitidos no dice a qué destino corresponde una venta con `IVA = 0`.
-**Tras la carga, el usuario ve una tabla de sus ventas y marca cada una** (o varias
-a la vez). Las de `IVA > 0` se asignan solas. **El factor no se calcula mientras
-haya ventas sin marcar.** Cada marca escribe un evento en la bitácora.
+Ver [`NEXT_STEPS.md`](../../NEXT_STEPS.md) para la lista completa. Lo más
+relevante para entender el estado actual:
 
-El sistema explica en texto qué factor obtuvo y por qué.
-
-## 6. Pre-declaración
-
-El dominio produce **resultados con clave estable** (`SALES_TAXED`,
-`PURCHASES_WITH_CREDIT`, …) y no conoce números de casillero. Se guardan en
-`period_results`.
-
-La presentación relaciona cada resultado con un campo del catálogo de la versión del
-formulario del período ([ADR-015](../adr/015-definicion-del-formulario-desde-pdf.md)).
-La relación se resuelve en cascada (guardada → coincidencia por atributos → IA opcional
-→ sin casillero), se guarda por versión en `result_mappings`, y se muestra:
-
-```
-Adquisiciones con derecho a crédito tributario (valor bruto) — 500 = 1,000.00
-```
-
-**El formulario es el destino: el usuario copia estos valores en el portal del SRI.**
-El período guarda el `form_version_id` con el que se presentó el resultado.
-
-Cada relación lleva su **explicación** (por qué se ubicó en ese casillero), visible para
-el usuario; es una aproximación y se presenta como tal. Nadie la corrige a mano.
-
-Cada resultado se puede abrir y muestra los comprobantes que lo componen. **La suma del
-desglose es exactamente el valor del resultado.** Un resultado sin casillero (compras
-con `IVA = 0`) se muestra sin código.
-
-Aviso permanente sobre el carácter asistivo del cálculo y el uso de totales
-([ADR-014](../adr/014-caracter-asistivo-y-disclaimers.md)).
-
-## 7. Cierre
-
-El usuario marca el período como declarado. Se fija `locked_at` y un disparador
-rechaza toda modificación posterior de sus comprobantes.
-
-Corregir exige reabrir el período explícitamente, y esa reapertura queda registrada
-([ADR-013](../adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md)).
+- Alta de contribuyente y selección de período (sin esto, no hay forma de
+  usar la app sin `scripts/seed-test-taxpayer.ts`).
+- Administración del formulario (ADR-015) — sin esto, `result_mappings`
+  nunca se llena y la pre-declaración no muestra casilleros.
+- Catálogo compartido (nivel 2) e IA (nivel 3) de la cascada de
+  clasificación — hoy `classifyPeriod()` los pasa como vacíos/null; solo
+  los niveles 1 y 4 están activos.

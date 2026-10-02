@@ -1,15 +1,23 @@
 # Modelo de datos
 
-Convenciones globales:
+Fuente de verdad: [`prisma/schema.prisma`](../prisma/schema.prisma). Este
+documento es la versión legible de ese archivo — si difieren, el schema
+manda.
+
+Convenciones:
 
 - **Claves primarias**: `UUID` con `DEFAULT uuidv7()` — función nativa desde
   PostgreSQL 18, sin extensión. Ordenan cronológicamente y no son enumerables.
+- **Columnas**: `camelCase` en Prisma/TypeScript, `snake_case` en Postgres vía
+  `@map` en cada campo (no solo en el nombre de la tabla). La falta de esto
+  fue un bug real de RLS — ver CLAUDE.md → "Errores fáciles de cometer aquí".
 - **Dinero**: `DECIMAL(14,2)`. Nunca `float`, nunca `number` de JavaScript.
   En TypeScript se maneja como `Prisma.Decimal`.
 - **Fechas tributarias**: `DATE` sin zona horaria. Un comprobante emitido el
   31/08 es de agosto sin importar dónde esté el servidor.
-- **Aislamiento**: RLS por `app.current_user_id`
-  ([ADR-004](adr/004-rls-por-usuario-con-prisma.md)).
+- **Aislamiento**: RLS por `app.current_user_id`, con un id centinela
+  explícito para `asAdmin()` — nunca una variable simplemente sin fijar
+  ([ADR-004](adr/004-rls-por-usuario-con-prisma.md), nota de actualización).
 
 ---
 
@@ -17,31 +25,18 @@ Convenciones globales:
 
 ### `users`
 
+Sin RLS — no es dato de un contribuyente.
+
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | UUID | PK |
 | `email` | TEXT | único |
 | `password_hash` | TEXT | bcrypt |
-| `first_name`, `last_name` | TEXT | |
-| `role` | ENUM | `INDIVIDUAL` \| `ACCOUNTANT` \| `ADMIN`. **`ADMIN` es el administrador del sistema**: sube el formulario y las tasas. No es administrador de contribuyentes y no accede a sus datos |
-| `plan` | ENUM | determina límites de contribuyentes y usuarios |
-| `ai_enabled` | BOOLEAN | desactiva el nivel 3 de la cascada |
+| `first_name`, `last_name` | TEXT | nullable |
+| `role` | ENUM | `INDIVIDUAL` \| `ACCOUNTANT` \| `ADMIN` |
+| `plan_code` | TEXT | FK a `plans.code`, default `STARTER` |
+| `ai_enabled` | BOOLEAN | default `true` |
 | `created_at` | TIMESTAMP | |
-
-### `user_taxpayers`
-
-Tabla de unión. Hoy cada contribuyente tiene exactamente una fila; existe para que
-compartir acceso más adelante sea un `INSERT` y no una migración
-([ADR-003](adr/003-usuario-como-tenant-con-tabla-de-union.md)).
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `user_id` | UUID | FK |
-| `taxpayer_id` | UUID | FK |
-| `access` | ENUM | `OWNER` \| `COLLABORATOR` |
-| `created_at` | TIMESTAMP | |
-
-PK compuesta `(user_id, taxpayer_id)`. Índice por `taxpayer_id` para la subconsulta de RLS.
 
 ### `plans`
 
@@ -49,8 +44,27 @@ PK compuesta `(user_id, taxpayer_id)`. Índice por `taxpayer_id` para la subcons
 |---|---|---|
 | `code` | TEXT | PK |
 | `max_taxpayers` | INT | |
-| `max_users` | INT | colaboradores; 1 en los planes actuales |
-| `ai_included` | BOOLEAN | |
+| `max_users` | INT | colaboradores; default 1 |
+| `ai_included` | BOOLEAN | default `true` |
+
+Sembrado por `prisma/seed.ts`: `STARTER` (1 contribuyente), `PROFESSIONAL`
+(10), `ENTERPRISE` (100, 5 usuarios).
+
+### `user_taxpayers`
+
+Tabla de unión desde el día uno, aunque hoy cada contribuyente tiene
+exactamente una fila ([ADR-003](adr/003-usuario-como-tenant-con-tabla-de-union.md)).
+**Bajo RLS.**
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | UUID | PK |
+| `user_id` | UUID | FK |
+| `taxpayer_id` | UUID | FK |
+| `access` | ENUM | `OWNER` \| `COLLABORATOR`, default `OWNER` |
+| `created_at` | TIMESTAMP | |
+
+Único `(user_id, taxpayer_id)`.
 
 ---
 
@@ -58,52 +72,72 @@ PK compuesta `(user_id, taxpayer_id)`. Índice por `taxpayer_id` para la subcons
 
 ### `taxpayers`
 
+**Bajo RLS.**
+
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | UUID | PK |
-| `ruc` | TEXT | 13 dígitos |
+| `ruc` | TEXT | único |
 | `business_name` | TEXT | |
 | `trade_name` | TEXT | nullable |
-| `regime` | ENUM | `RIMPE_POPULAR` \| `RIMPE_EMPRENDEDOR` \| `GENERAL` |
-| `iva_periodicity` | ENUM | `MONTHLY` \| `SEMIANNUAL` — **ingresado por el usuario**, editable. El MVP solo genera pre-declaración para `MONTHLY` |
+| `regime` | ENUM | `RIMPE_POPULAR` \| `RIMPE_EMPRENDEDOR` \| `GENERAL`, default `GENERAL` |
+| `iva_periodicity` | ENUM | `MONTHLY` \| `SEMIANNUAL` \| `ANNUAL`, default `MONTHLY` — ingresado por el usuario, editable |
 | `economic_activities` | JSONB | `[{code, description}]` |
 | `activity_fingerprint` | TEXT | hash del conjunto de actividades |
+| `created_by` | UUID | FK a `users` — no es parte del diseño original; ver nota abajo |
 | `created_at` | TIMESTAMP | |
 
 `activity_fingerprint` se recalcula al editar las actividades. Al cambiar,
 las reglas de proveedor emitidas bajo el valor anterior quedan pendientes de
 revalidación ([ADR-006](adr/006-reglas-por-proveedor-y-actividad-economica.md)).
 
+> **`created_by` no estaba en el diseño original.** Se agregó porque
+> `Prisma.create()` siempre hace `INSERT ... RETURNING`, y Postgres filtra
+> `RETURNING` por la política de `SELECT`: sin esta columna, el creador no
+> podía ver la fila que acababa de insertar hasta que existiera el vínculo en
+> `user_taxpayers` (que se crea en la sentencia siguiente, no en la misma) —
+> en la práctica, nadie podía crear un contribuyente en absoluto. La política
+> de `SELECT`/`UPDATE` acepta `created_by = usuario actual` además de la
+> pertenencia vía `user_taxpayers`.
+
 ### `tax_periods`
+
+**Bajo RLS.**
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | UUID | PK |
 | `taxpayer_id` | UUID | FK |
-| `tax_type` | ENUM | `IVA` \| `INCOME_TAX` \| `WITHHOLDING` — solo `IVA` en el MVP |
-| `period_start`, `period_end` | DATE | reemplazan a mes/trimestre |
-| `periodicity` | ENUM | `MONTHLY` \| `SEMIANNUAL` \| `ANNUAL` |
+| `tax_type` | ENUM | `IVA` \| `INCOME_TAX` \| `WITHHOLDING`, default `IVA` — solo `IVA` tiene lógica implementada |
+| `period_start`, `period_end` | DATE | |
+| `periodicity` | ENUM | `MONTHLY` \| `SEMIANNUAL` \| `ANNUAL`, default `MONTHLY` |
 | `status` | ENUM | `DRAFT` \| `UNDER_REVIEW` \| `FILED` |
-| `form_version_id` | UUID | FK — versión del formulario con la que se presentó el resultado |
-| `proportionality_factor` | DECIMAL(5,4) | nullable hasta calcularse; `1.0000` es un valor normal, no un caso especial |
-| `factor_inputs` | JSONB | los totales de ventas que lo produjeron |
+| `form_version_id` | UUID | FK, nullable — versión del formulario con la que se presentó |
+| `proportionality_factor` | DECIMAL(5,4) | nullable hasta calcularse |
+| `factor_inputs` | JSONB | nullable |
 | `filed_at`, `locked_at` | TIMESTAMP | nullable |
+| `created_at`, `updated_at` | TIMESTAMP | |
 
 Único `(taxpayer_id, tax_type, period_start)`.
 
-> No existe `quarter`. El calendario tributario ecuatoriano para IVA es mensual o
-> semestral; Renta es anual.
+Un disparador en Postgres rechaza INSERT, UPDATE y DELETE sobre
+`invoices_received`/`invoices_issued` del período mientras `locked_at` esté
+fijado (`prisma/migrations/*_add_period_lock/`,
+[ADR-013](adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md)).
 
 ### `source_files`
+
+**Bajo RLS.**
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | UUID | PK |
-| `taxpayer_id`, `tax_period_id` | UUID | FK |
-| `kind` | ENUM | `PURCHASES_TXT` \| `SALES_TXT` — extensible a XML |
+| `taxpayer_id` | UUID | FK |
+| `tax_period_id` | UUID | FK, nullable |
+| `kind` | ENUM | `PURCHASES_TXT` \| `SALES_TXT` |
 | `filename` | TEXT | |
 | `sha256` | TEXT | detecta resubida del archivo idéntico |
-| `row_count`, `rows_imported`, `rows_rejected` | INT | |
+| `row_count`, `rows_imported`, `rows_rejected` | INT | default 0 |
 | `uploaded_by` | UUID | FK a `users` |
 | `uploaded_at` | TIMESTAMP | |
 
@@ -113,64 +147,64 @@ revalidación ([ADR-006](adr/006-reglas-por-proveedor-y-actividad-economica.md))
 
 ### `invoices_received`
 
-Refleja las columnas del archivo del SRI, sin inventar campos que la fuente no trae.
+Refleja las columnas del archivo del SRI, sin inventar campos
+([ADR-008](adr/008-solo-totales-sin-detalle-de-lineas.md)). **Bajo RLS.**
 
-| Columna | Tipo | Origen |
+| Columna | Tipo | Origen / notas |
 |---|---|---|
 | `id` | UUID | |
-| `taxpayer_id`, `tax_period_id`, `source_file_id` | UUID | |
+| `taxpayer_id`, `tax_period_id` | UUID | FK |
+| `source_file_id` | UUID | FK, nullable |
 | `access_key` | CHAR(49) | `CLAVE_ACCESO` |
 | `supplier_ruc` | TEXT | `RUC_EMISOR` |
-| `supplier_name` | TEXT | `RAZON_SOCIAL_EMISOR` |
-| `document_type` | ENUM | `TIPO_COMPROBANTE` |
+| `supplier_name` | TEXT | `RAZON_SOCIAL_EMISOR` — señal principal de clasificación |
+| `document_type` | TEXT | `TIPO_COMPROBANTE` |
 | `series` | TEXT | `SERIE_COMPROBANTE` |
-| `issue_date` | DATE | `FECHA_EMISION` |
-| `authorization_date` | TIMESTAMP | `FECHA_AUTORIZACION` |
-| `subtotal` | DECIMAL(14,2) | `VALOR_SIN_IMPUESTOS` |
-| `vat_amount` | DECIMAL(14,2) | `IVA` |
+| `issue_date` | DATE | `FECHA_EMISION` — determina el período |
+| `authorization_date` | TIMESTAMP | `FECHA_AUTORIZACION`, nullable |
+| `subtotal` | DECIMAL(14,2) | `VALOR_SIN_IMPUESTOS`, tal cual |
+| `vat_amount` | DECIMAL(14,2) | `IVA`, tal cual |
 | `total` | DECIMAL(14,2) | `IMPORTE_TOTAL` |
 | `modified_document` | TEXT | `NUMERO_DOCUMENTO_MODIFICADO`, nullable |
-| **Clasificación** | | |
 | `iva_category` | ENUM | `CREDIT` \| `COST_EXPENSE` \| `NON_DEDUCTIBLE` \| `NOT_APPLICABLE` \| `UNCLASSIFIED` |
-| `processing_status` | ENUM | `PROCESSED` \| `REQUIRES_MANUAL_REVIEW` \| `EXCLUDED` |
-| `classification_source` | ENUM | `RULE` \| `CATALOG` \| `AI` \| `USER` \| `DETERMINISTIC` |
+| `processing_status` | ENUM | `UNCLASSIFIED` \| `PROCESSED` \| `REQUIRES_MANUAL_REVIEW` \| `EXCLUDED` |
+| `classification_source` | ENUM | `RULE` \| `CATALOG` \| `AI` \| `USER` \| `DETERMINISTIC`, nullable |
 | `applied_rule_id` | UUID | nullable |
 | `ai_confidence` | DECIMAL(3,2) | nullable |
 | `ai_reasoning` | TEXT | nullable |
+| `created_at`, `updated_at` | TIMESTAMP | |
 
 Único `(taxpayer_id, access_key)` — la clave de deduplicación.
-Índices: `(taxpayer_id, tax_period_id, processing_status)`, `(taxpayer_id, supplier_ruc)`.
 
-`iva_category = NOT_APPLICABLE` es el bucket de `IVA = 0`: no pasa por la cascada.
+`iva_category = NOT_APPLICABLE` es el bucket de `IVA = 0`: no pasa por la
+cascada. `processing_status` empieza en `UNCLASSIFIED` tras la ingesta;
+`classifyPeriod()` lo mueve a `PROCESSED` o `REQUIRES_MANUAL_REVIEW`.
 
-> **No se almacena ninguna base derivada.** `subtotal` y `vat_amount` son lo que
-> trae el archivo. Ver [ADR-008](adr/008-solo-totales-sin-detalle-de-lineas.md).
+> **No se almacena ninguna base derivada.** `subtotal` y `vat_amount` son lo
+> que trae el archivo.
 
 ### `invoices_issued`
 
 El archivo de emitidas tiene **menos columnas** que el de recibidas: no trae
-identificación del receptor ni razón social.
+identificación del receptor ni razón social. **Bajo RLS.**
 
-| Columna | Origen |
+| Columna | Origen / notas |
 |---|---|
+| `id`, `taxpayer_id`, `tax_period_id`, `source_file_id` | igual que recibidas |
 | `access_key` | `CLAVE_ACCESO` |
 | `document_type` | `COMPROBANTE` (nótese: no `TIPO_COMPROBANTE`) |
 | `series` | `SERIE_COMPROBANTE` |
-| `issue_date`, `authorization_date` | |
-| `subtotal`, `vat_amount`, `total` | |
-| `sales_treatment` | Destino en el formulario: `TAXED` (IVA > 0, automático) \| `ZERO_WITH_CREDIT` (405) \| `ZERO_NO_CREDIT` (403) \| `EXPORT_GOODS` (407) \| `EXPORT_SERVICES` (408) \| `NON_OBJECT_EXEMPT` (431) \| `UNCLASSIFIED` (valor inicial de las de `IVA = 0`) |
+| `issue_date`, `authorization_date` | `FECHA_EMISION` incluye hora aquí; en recibidas no |
+| `subtotal`, `vat_amount`, `total` | tal cual |
+| `sales_treatment` | ENUM: `TAXED` (automático) \| `ZERO_WITH_CREDIT` (405) \| `ZERO_NO_CREDIT` (403) \| `EXPORT_GOODS` (407) \| `EXPORT_SERVICES` (408) \| `NON_OBJECT_EXEMPT` (431) \| `UNCLASSIFIED` (inicial) |
+| `created_at`, `updated_at` | |
 
 Único `(taxpayer_id, access_key)`.
 
-`sales_treatment` existe porque el archivo no dice a qué destino corresponde una
-venta con `IVA = 0`, y de eso depende el factor de proporcionalidad. **Lo marca el
-usuario** en una tabla tras la carga, una por una o en bloque; el factor no se
-calcula mientras quede alguna en `UNCLASSIFIED`. Ver
-[`tax/formulario-104.md`](tax/formulario-104.md) → *Decisiones tomadas*.
-
-Las compras con `IVA = 0` tienen el mismo problema de destino (507, 508, 531, 532)
-pero sin efecto sobre el crédito; el supuesto de trabajo está en *Decisiones
-abiertas* del mismo documento.
+`sales_treatment` existe porque el archivo no dice a qué destino corresponde
+una venta con `IVA = 0`. **Lo marca el usuario** en la pantalla de ventas
+emitidas; el factor de proporcionalidad no se calcula mientras quede alguna
+en `UNCLASSIFIED`.
 
 ---
 
@@ -178,24 +212,28 @@ abiertas* del mismo documento.
 
 ### `supplier_rules`
 
+La regla es por contribuyente, revocable, no se borra
+([ADR-006](adr/006-reglas-por-proveedor-y-actividad-economica.md)). **Bajo RLS.**
+
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | UUID | PK |
-| `taxpayer_id` | UUID | la regla es **por contribuyente**, no global |
+| `taxpayer_id` | UUID | FK |
 | `supplier_ruc` | TEXT | |
 | `activity_fingerprint` | TEXT | contexto bajo el que se decidió |
 | `iva_category` | ENUM | `CREDIT` \| `COST_EXPENSE` \| `NON_DEDUCTIBLE` |
 | `source` | ENUM | `USER` \| `CATALOG` \| `AI` |
 | `created_by` | UUID | nullable si la creó el motor |
-| `times_applied` | INT | |
-| `revoked_at` | TIMESTAMP | nullable — las reglas no se borran |
-
-Único parcial `(taxpayer_id, supplier_ruc) WHERE revoked_at IS NULL`.
+| `times_applied` | INT | default 0 |
+| `revoked_at` | TIMESTAMP | nullable |
+| `applied_at` | TIMESTAMP | |
 
 ### `shared_supplier_catalog`
 
-Agregado global y anónimo. **No contiene identificadores de contribuyentes ni de
-usuarios** — solo el consenso sobre cada proveedor.
+Agregado global y anónimo. **Sin identificadores de contribuyentes ni
+usuarios** ([ADR-007](adr/007-modo-sin-ia-y-catalogo-compartido.md)). Sin
+RLS. **No implementado todavía** — nivel 2 de la cascada pasa un arreglo
+vacío (ver `docs/guides/code-flow.md`).
 
 | Columna | Tipo |
 |---|---|
@@ -203,51 +241,58 @@ usuarios** — solo el consenso sobre cada proveedor.
 | `supplier_name` | TEXT |
 | `suggested_iva_category` | ENUM |
 | `agreement_ratio` | DECIMAL(3,2) |
-| `sample_count` | INT |
+| `sample_count` | INT, default 1 |
 | `updated_at` | TIMESTAMP |
 
 ### `classification_events`
 
-Append-only, con trigger de inmutabilidad. `UPDATE` y `DELETE` se rechazan.
+Append-only; un disparador rechaza `UPDATE` y `DELETE`
+([ADR-013](adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md)). **Bajo RLS**
+(solo `SELECT`/`INSERT` — sin políticas de `UPDATE`/`DELETE`, reforzado
+además por el disparador).
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | UUID | PK |
-| `received_invoice_id`, `issued_invoice_id` | UUID | FK; `CHECK` exactamente uno no nulo. La bitácora cubre compras y también el marcado de ventas |
+| `received_invoice_id`, `issued_invoice_id` | UUID | FK, ambos nullable |
+| `taxpayer_id`, `tax_period_id` | UUID | denormalizado para la bitácora |
 | `field` | TEXT | qué cambió |
-| `old_value`, `new_value` | TEXT | |
+| `old_value`, `new_value` | TEXT | nullable |
 | `actor_type` | ENUM | `USER` \| `ENGINE` |
 | `actor_user_id` | UUID | nullable |
-| `source` | ENUM | igual que `classification_source` |
-| `rules_version` | TEXT | versión del motor determinista |
-| `model_id`, `prompt_version` | TEXT | nullable, solo cuando `source = AI` |
-| `reason` | TEXT | |
+| `source` | ENUM | igual que `classification_source`, nullable |
+| `rules_version`, `model_id`, `prompt_version` | TEXT | nullable |
+| `reason` | TEXT | nullable |
 | `created_at` | TIMESTAMP | |
 
-Esta tabla es la respuesta a *"¿por qué este comprobante se clasificó así?"* dos
-años después. Ver [ADR-013](adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md).
+Cubre tanto la clasificación de compras como el marcado de ventas y el
+bloqueo/reapertura de período — `field` distingue el caso (`ivaCategory`,
+`salesTreatment`, `status`).
 
 ---
 
 ## Datos normativos
 
-Versionados por vigencia, nunca constantes en el código
-([ADR-012](adr/012-tasas-y-casilleros-como-datos-con-vigencia.md)).
-
 ### `tax_rates`
+
+PK compuesta `(tax, valid_from)`. Sin RLS.
 
 | Columna | Tipo |
 |---|---|
 | `tax` | ENUM (`IVA`) |
 | `rate` | DECIMAL(5,4) |
-| `valid_from`, `valid_to` | DATE |
+| `valid_from`, `valid_to` | DATE, `valid_to` nullable |
 
-### Formulario y relación con los resultados
+**Vacía hoy.** Ningún valor en [`docs/tax/tasas-iva.md`](tax/tasas-iva.md)
+está verificado todavía — CLAUDE.md prohíbe cargar un `[VERIFICAR]` de
+memoria.
 
-El formulario es el **destino** de los resultados, no una fuente de cálculo. Un
-administrador sube el PDF una vez; el sistema guarda el catálogo completo de campos y
-relaciona cada resultado con el campo que le corresponde
-([ADR-015](adr/015-definicion-del-formulario-desde-pdf.md)).
+### Formulario y relación con los resultados ([ADR-015](adr/015-definicion-del-formulario-desde-pdf.md))
+
+El formulario es el **destino** de los resultados, no una fuente de cálculo.
+Sin RLS (no es dato de contribuyente). **Vacías hoy** — no se ha importado
+ningún formulario; la pantalla de administración no existe
+(`NEXT_STEPS.md`).
 
 ```
 form_versions ──< form_fields
@@ -259,99 +304,92 @@ form_versions ──< form_fields
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | UUID | PK |
-| `form_code` | TEXT | `104`. El MVP solo soporta el mensual; el semestral es otro formulario |
-| `label` | TEXT | ej. "Declaración de IVA" |
-| `valid_from`, `valid_to` | DATE | **los fija el administrador**; el PDF no lo dice |
+| `form_code` | TEXT | `"104"`; el MVP solo soporta el mensual |
+| `label` | TEXT | |
+| `valid_from`, `valid_to` | DATE | los fija el administrador; `valid_to` nullable |
 | `status` | ENUM | `DRAFT` \| `PUBLISHED` |
-| `source_sha256` | TEXT | hash del PDF importado; el archivo **no se guarda** |
-| `imported_by` | UUID | FK a `users` (ADMIN) |
-| `imported_at`, `published_at` | TIMESTAMP | |
+| `source_sha256` | TEXT | hash del PDF; el archivo no se guarda, nullable |
+| `imported_by` | UUID | FK a `users` (ADMIN), nullable |
+| `imported_at`, `published_at` | TIMESTAMP | nullable |
 
-Una versión publicada que algún período ya usó **no se modifica**.
+Único `(form_code, valid_from)`.
 
 #### `form_fields`
 
-El catálogo **completo** del formulario, tal como sale del PDF.
+El catálogo completo del formulario, tal como sale del PDF.
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | UUID | PK |
 | `form_version_id` | UUID | FK |
-| `code` | TEXT | `500`, `563`… único por versión |
-| `label` | TEXT | nombre oficial, tal como se mostrará al usuario |
-| `section` | TEXT | ej. "Resumen de adquisiciones y pagos" |
-| `column_kind` | ENUM | `GROSS` \| `NET` \| `TAX` \| `SINGLE` |
+| `code` | TEXT | `"500"`, `"563"`… único por versión |
+| `label` | TEXT | nombre oficial |
+| `section` | TEXT | nullable |
+| `column_kind` | ENUM | `GROSS` \| `NET` \| `TAX` \| `SINGLE`, default `SINGLE` |
 | `display_order` | INT | |
-| `observed` | BOOLEAN | `false` si una importación posterior no lo encontró |
+| `observed` | BOOLEAN | default `true`; `false` si una importación posterior no lo encontró |
 
-Único `(form_version_id, code)`. **Sin valores, sin fórmulas y sin datos personales.**
+Único `(form_version_id, code)`. Sin valores, sin fórmulas, sin datos
+personales.
 
 #### `result_mappings`
 
-Qué campo recibe cada resultado del dominio. Lo calcula el sistema **una vez por versión
-del formulario** y queda guardado, de modo que un resultado siempre cae en el mismo
-casillero.
+PK compuesta `(form_version_id, result_key)`.
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `form_version_id` | UUID | FK |
-| `result_key` | TEXT | ej. `PURCHASES_WITH_CREDIT`, con su parte `.GROSS` / `.NET` / `.TAX` |
-| `form_field_id` | UUID | FK |
-| `method` | ENUM | `ATTRIBUTES` (coincidencia determinista) \| `AI` |
-| `reason` | TEXT | **explicación de por qué se ubicó ahí**, que se muestra al usuario |
+| `result_key` | TEXT | ej. `PURCHASES_WITH_CREDIT` |
+| `form_field_id` | UUID | FK, nullable |
+| `method` | ENUM | `ATTRIBUTES` \| `AI`, default `ATTRIBUTES` |
+| `reason` | TEXT | explicación mostrada al usuario |
 | `confidence` | DECIMAL(3,2) | nullable; solo cuando `method = AI` |
 | `created_at` | TIMESTAMP | |
 
-PK `(form_version_id, result_key)`; único `(form_version_id, form_field_id)`.
-
-Un resultado **sin fila** no tiene casillero identificado: se muestra sin código y se
-avisa. No bloquea nada. Nadie edita estas filas a mano: si una relación no es la
-esperada, se corrige mejorando las reglas de emparejamiento. Al publicar una versión
-nueva, se conservan las relaciones cuyo campo no cambió y se recalculan las demás.
-
-Cada resultado del dominio lleva una **descripción estructurada** (operación,
-tratamiento, columna, activo fijo) que es lo que el sistema compara con los nombres de
-`form_fields`. El catálogo de claves vive en el dominio (`src/domain/`); ver
-[`tax/formulario-104.md`](tax/formulario-104.md) para los resultados del MVP y el
-casillero que se espera para cada uno.
+Único `(form_version_id, form_field_id)`. Nadie edita estas filas a mano.
 
 #### `period_results`
 
-Lo que el dominio calculó para un período. **No conoce casilleros**: la presentación
-une estas filas con `result_mappings` de la versión guardada en `tax_periods`.
+PK compuesta `(tax_period_id, result_key)`.
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `tax_period_id` | UUID | FK |
-| `result_key` | TEXT | |
+| `result_key` | TEXT | clave estable del dominio |
 | `value` | DECIMAL(14,4) | 4 decimales por el factor (`1.0000`) |
 | `computed_at` | TIMESTAMP | |
 
-PK `(tax_period_id, result_key)`. Se recalculan a partir de los comprobantes; se
-guardan para fijar lo que el usuario vio al cerrar el período.
-
-Las tasas y las versiones del formulario son de solo lectura para el usuario, pero
-**visibles**: debe poder verificar qué tasa y qué formulario usó el sistema en su
-período.
+Lo que el dominio calculó. No conoce casilleros — la presentación une esto
+con `result_mappings` de la versión guardada en `tax_periods`.
 
 ### `ai_usage`
 
-Medición de consumo para detectar abuso, **no para facturar**
-([ADR-007](adr/007-modo-sin-ia-y-catalogo-compartido.md)).
+PK compuesta `(user_id, taxpayer_id, period)`. Medición de consumo, no para
+facturar ([ADR-007](adr/007-modo-sin-ia-y-catalogo-compartido.md)). Sin RLS.
+**Vacía hoy** — los niveles 2 y 3 de la cascada (catálogo compartido, IA) no
+están implementados.
 
 | Columna | Tipo |
 |---|---|
 | `user_id`, `taxpayer_id` | UUID |
-| `calls`, `input_tokens`, `output_tokens` | INT |
 | `period` | DATE |
+| `calls`, `input_tokens`, `output_tokens` | INT, default 0 |
 
 ---
 
 ## Tablas bajo RLS
 
 `taxpayers`, `user_taxpayers`, `tax_periods`, `source_files`,
-`invoices_received`, `invoices_issued`, `supplier_rules`, `classification_events`,
-`period_results`.
+`invoices_received`, `invoices_issued`, `supplier_rules`,
+`classification_events`, `period_results`.
 
-**Sin RLS** (no contienen datos de contribuyentes): `users`, `plans`, `tax_rates`,
-`form_versions`, `form_fields`, `result_mappings`, `shared_supplier_catalog`.
+**Sin RLS** (no contienen datos de contribuyentes): `users`, `plans`,
+`tax_rates`, `form_versions`, `form_fields`, `result_mappings`,
+`shared_supplier_catalog`, `ai_usage`.
+
+Cada tabla con RLS tiene tanto `ENABLE ROW LEVEL SECURITY` como
+`FORCE ROW LEVEL SECURITY` — la app se conecta como el mismo rol (`taxap`)
+que es dueño de las tablas, y sin `FORCE` Postgres lo exime de sus propias
+políticas. Ver
+[`prisma/migrations/*_add_rls/`](../prisma/migrations/) y
+[ADR-004](adr/004-rls-por-usuario-con-prisma.md).
