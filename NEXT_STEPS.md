@@ -71,14 +71,32 @@ abrir a usuarios reales.
       que trae `FECHA_EMISION` en el archivo de emitidas, produciendo fechas
       inválidas silenciosamente. Corregido; ver CLAUDE.md → "Errores fáciles
       de cometer aquí".
-- [ ] **Autenticación no está conectada.** Cada `actions.ts` nuevo tiene un
-      `getCurrentUserId()` que lanza `Error('Auth not wired up yet')` — a
-      propósito, para que falle ruidosamente en vez de simular un usuario
-      falso. Bloquea probar cualquier pantalla de principio a fin.
+- [x] **Autenticación conectada (2026-10-01).** NextAuth v5 con `Credentials`
+      (correo + contraseña, `bcryptjs`, sesión JWT) — `src/lib/auth.ts`.
+      `getCurrentUserId()` (`src/lib/session.ts`) reemplaza el stub que
+      lanzaba en cada `actions.ts`; sigue lanzando si no hay sesión, ahora
+      por una razón real. `/login` y `/register` creados;
+      `src/proxy.ts` redirige a `/login` cualquier ruta bajo `/periodos/`
+      sin sesión. Verificado end-to-end contra la base real: registro,
+      login vía el endpoint real de NextAuth, y las cuatro pantallas
+      respondiendo 200 con un contribuyente y período reales.
+      **Encontrado en el camino:** `users.plan_code` no tenía a qué apuntar
+      — no existía ninguna fila en `plans` — así que ningún registro podía
+      completarse. Se creó `prisma/seed.ts` (antes no existía, pese a que
+      `package.json` ya tenía el script `db:seed` apuntándole) con los tres
+      planes; `db:reset` ahora lo corre automáticamente.
+      **Encontrado y corregido aparte:** el `middleware.ts` en la raíz del
+      proyecto nunca se ejecutaba — con directorio `src/`, Next.js espera el
+      archivo en `src/middleware.ts` — y además Next.js 16 renombró todo el
+      mecanismo a `proxy.ts` (`middleware.ts` queda deprecado). Movido a
+      `src/proxy.ts` con la función exportada como `proxy`.
 - [ ] **No hay pantalla de alta de contribuyente ni de selección de período.**
       `docs/site/screens/README.md` las deja fuera de esta ronda a propósito.
       Mientras tanto, la portada enlaza a un `taxpayerId`/`periodId` de
-      relleno (`/demo/periodos/demo/...`) que no existe en la base.
+      relleno (`/demo/periodos/demo/...`) que no existe en la base — para
+      probar de verdad hace falta crear el contribuyente y el período a mano
+      (`docker exec postgres18 psql ...`), como se hizo para esta
+      verificación.
 - [ ] **Pantalla `admin-formulario.md` no construida.** Sigue siendo solo el
       spec; nadie ha importado un formulario todavía.
 - [ ] **Bloqueo de período (ADR-013, segundo mecanismo) sin disparador.** Se

@@ -71,12 +71,15 @@ revisión. Nada se rompe. Ver [ADR-007](docs/adr/007-modo-sin-ia-y-catalogo-comp
 npm install
 export $(cat .env.local | xargs)
 npm run db:migrate
+npm run db:seed
 ```
 
-> No hay seed de datos normativos todavía (tasas de IVA, mapa de casilleros).
-> Cargarlos manualmente por ahora — ver [`docs/tax/`](docs/tax/). Cualquier valor
-> sin fuente y fecha de verificación va marcado `[VERIFICAR]` y **no se carga al
-> sistema** (ver CLAUDE.md, "Valores normativos").
+El seed (`prisma/seed.ts`) solo carga los planes (`plans`) — hacen falta para
+que `users.plan_code` tenga a qué apuntar al registrar una cuenta. **No carga
+datos normativos** (tasas de IVA, mapa de casilleros): cualquier valor sin
+fuente y fecha de verificación va marcado `[VERIFICAR]` y no se carga al
+sistema (CLAUDE.md → "Valores normativos"). Esos se cargan manualmente cuando
+se verifiquen — ver [`docs/tax/`](docs/tax/).
 
 ## 4. Arrancar
 

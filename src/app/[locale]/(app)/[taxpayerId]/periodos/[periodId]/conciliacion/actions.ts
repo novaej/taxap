@@ -2,14 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { withUser } from '@/lib/db';
+import { getCurrentUserId } from '@/lib/session';
 import { classificationCascade, requiresManualReview } from '@/domain/iva';
 import type { IvaCategoryEnum } from '@/domain/types';
 import { VOUCHER_TYPE_WHITELIST } from '@/services/ingestion';
 import type { IvaCategory, ProcessingStatus, ClassificationSourceType } from '@prisma/client';
-
-async function getCurrentUserId(): Promise<string> {
-  throw new Error('Auth not wired up yet');
-}
 
 export async function getPurchasesByStatus(taxpayerId: string, periodId: string) {
   const userId = await getCurrentUserId();

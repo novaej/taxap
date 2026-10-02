@@ -2,14 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { withUser } from '@/lib/db';
+import { getCurrentUserId } from '@/lib/session';
 import { parseFile, ingestionService } from '@/services/ingestion';
 import type { ReceivedInvoiceRow, IssuedInvoiceRow } from '@/services/ingestion';
 import crypto from 'crypto';
-
-// TODO: replace with real session lookup once auth is wired up.
-async function getCurrentUserId(): Promise<string> {
-  throw new Error('Auth not wired up yet');
-}
 
 export interface UploadResult {
   success: boolean;

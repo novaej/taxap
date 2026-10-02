@@ -93,6 +93,23 @@
     "emptyState": "Todos los comprobantes están clasificados",
     "continueToPreDeclaration": "Continuar a pre-declaración →"
   },
+  "Auth": {
+    "loginTitle": "Iniciar sesión",
+    "registerTitle": "Crear cuenta",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "loginButton": "Iniciar sesión",
+    "registerButton": "Crear cuenta",
+    "noAccount": "¿No tienes cuenta?",
+    "hasAccount": "¿Ya tienes cuenta?",
+    "goToRegister": "Crear una",
+    "goToLogin": "Iniciar sesión",
+    "invalidCredentials": "Correo o contraseña incorrectos",
+    "emailInUse": "Ya existe una cuenta con ese correo",
+    "registerSuccess": "Cuenta creada. Ya puedes iniciar sesión."
+  },
   "PreDeclaracion": {
     "title": "Pre-declaración",
     "formLabel": "Formulario 104 (mensual)",

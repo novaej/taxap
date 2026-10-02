@@ -122,3 +122,35 @@ Modo imperativo: "Agregar", no "Agregado".
   proporcionalidad; el dominio lo calcula en TypeScript puro, que es lo que
   ADR-001 pide para probar el motor sin base de datos. La guía quedó sin
   corregir — ver `NEXT_STEPS.md`.
+
+## [2026-10-01] Autenticación conectada
+
+### Agregado
+- NextAuth v5 con proveedor `Credentials` (correo + contraseña, `bcryptjs`,
+  sesión JWT) — `src/lib/auth.ts`, `src/app/api/auth/[...nextauth]/route.ts`.
+  `src/lib/session.ts` da un `getCurrentUserId()` compartido que reemplaza el
+  stub que cada `actions.ts` tenía por separado.
+- Pantallas `/login` y `/register` (`src/app/[locale]/(auth)/`).
+- `src/proxy.ts` redirige a `/login` cualquier ruta bajo `/periodos/` sin
+  sesión.
+- `prisma/seed.ts`: siembra los planes (`plans`) — no existía, pese a que
+  `package.json` ya apuntaba `db:seed` a ese archivo. `db:reset` ahora lo
+  corre automáticamente al final.
+
+### Corregido
+- **El registro no podía completarse nunca.** `users.plan_code` es una FK a
+  `plans.code`, y no había ninguna fila en `plans`. Resuelto por el seed
+  nuevo.
+- **El middleware de autenticación no se ejecutaba.** Dos causas, ambas
+  silenciosas (no había ningún error, la ruta protegida simplemente
+  renderizaba sin redirigir): `middleware.ts` estaba en la raíz del proyecto,
+  pero con un directorio `src/` Next.js solo lo reconoce en
+  `src/middleware.ts`; y Next.js 16 renombró todo el mecanismo a `proxy.ts`
+  (`middleware.ts` queda deprecado). Movido a `src/proxy.ts` con la función
+  exportada como `proxy`.
+
+Verificado end-to-end contra la base real: registro, login vía el endpoint
+real de NextAuth (`/api/auth/callback/credentials`), sesión con `user.id`
+poblado, y las cuatro pantallas de período respondiendo 200 con un
+contribuyente y un período creados a mano para la prueba (todavía no hay
+pantalla de alta de contribuyente — ver `NEXT_STEPS.md`).

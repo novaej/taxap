@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { NextIntlClientProvider, hasLocale } from 'next-intl';
+import { SessionProvider } from 'next-auth/react';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 
@@ -29,7 +30,9 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider>
-      <div className="min-h-screen bg-background">{children}</div>
+      <SessionProvider>
+        <div className="min-h-screen bg-background">{children}</div>
+      </SessionProvider>
     </NextIntlClientProvider>
   );
 }

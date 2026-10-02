@@ -2,13 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { withUser } from '@/lib/db';
+import { getCurrentUserId } from '@/lib/session';
 import { calculatePeriodResults } from '@/domain/iva';
 import type { ClassifiedInvoice } from '@/domain/iva';
 import { IvaCategoryEnum, SalesTreatmentEnum } from '@/domain/types';
-
-async function getCurrentUserId(): Promise<string> {
-  throw new Error('Auth not wired up yet');
-}
 
 /**
  * Ejecuta el cálculo del dominio sobre los comprobantes del período y

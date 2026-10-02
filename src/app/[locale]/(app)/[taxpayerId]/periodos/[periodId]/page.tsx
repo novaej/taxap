@@ -1,12 +1,9 @@
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
 import { withUser } from '@/lib/db';
+import { getCurrentUserId } from '@/lib/session';
 import { getPeriodResults } from './actions';
 import { PreDeclaracionClient } from './predeclaracion-client';
-
-async function getCurrentUserId(): Promise<string> {
-  throw new Error('Auth not wired up yet');
-}
 
 export default async function PreDeclaracionPage({
   params,

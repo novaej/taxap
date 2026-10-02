@@ -79,6 +79,9 @@ async function reset() {
 
   console.log('Generating Prisma client...');
   execSync('npx prisma generate', { stdio: 'inherit' });
+
+  console.log('Seeding...');
+  execSync('npx tsx prisma/seed.ts', { stdio: 'inherit' });
 }
 
 reset().catch((err) => {

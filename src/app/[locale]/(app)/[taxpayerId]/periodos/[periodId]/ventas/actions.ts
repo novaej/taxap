@@ -2,11 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { withUser } from '@/lib/db';
+import { getCurrentUserId } from '@/lib/session';
 import type { SalesTreatment } from '@prisma/client';
-
-async function getCurrentUserId(): Promise<string> {
-  throw new Error('Auth not wired up yet');
-}
 
 export async function getPendingSales(taxpayerId: string, periodId: string) {
   const userId = await getCurrentUserId();
