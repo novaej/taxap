@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +29,7 @@ interface VersionRow {
 
 export function FormulariosClient({ initialVersions }: { initialVersions: VersionRow[] }) {
   const t = useTranslations('Admin');
+  const router = useRouter();
 
   const [versions, setVersions] = useState(initialVersions);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -55,11 +56,8 @@ export function FormulariosClient({ initialVersions }: { initialVersions: Versio
       return;
     }
 
-    setVersions((prev) => [
-      { id: result.formVersionId!, formCode, label, validFrom, status: 'DRAFT' },
-      ...prev,
-    ]);
     setDialogOpen(false);
+    router.push(`/admin/formularios/${result.formVersionId}`);
   }
 
   return (

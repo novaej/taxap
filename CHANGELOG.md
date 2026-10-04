@@ -496,3 +496,46 @@ dejaban.
   ADR-015 no está implementada; publicar un formulario deja sus
   `form_fields` listos pero nada los conecta todavía con las claves de
   resultado del dominio.
+
+## [2026-10-04] Extracción automática del PDF del formulario
+
+### Agregado
+- `src/services/forms/pdf-field-extractor.ts` — `extractCandidateFields()`,
+  pura (ADR-001): heurística de texto plano sobre lo que `pdf-parse`
+  extrae de la capa de texto del PDF. Agrupa corridas de 1 a 3 pares
+  código-valor consecutivos y los asigna a `SINGLE` / `GROSS+NET` /
+  `GROSS+NET+TAX` según la posición, siguiendo el orden fijo de columnas
+  del formulario ("VALOR BRUTO · VALOR NETO · IMPUESTO GENERADO").
+  Verificada contra el PDF de muestra real: los 10 códigos ya
+  documentados en [`formulario-104.md`](docs/tax/formulario-104.md)
+  (401/411/421, 500/510/520, 502/512/522, 563) salen con el código y el
+  tipo de columna correctos.
+- `createFormVersionDraft()` ahora corre esa extracción sobre el PDF
+  subido y precarga los `form_fields` candidatos del borrador —
+  `addFormField()`/`removeFormField()` siguen disponibles para corregir
+  cualquier fila antes de publicar, que es obligatorio según ADR-015 sin
+  importar qué tan buena sea la extracción.
+- Dependencia nueva: `pdf-parse` (envuelve `pdfjs-dist`, extracción de
+  texto puro en Node).
+
+### Corregido (antes de llegar a un commit)
+- La primera versión de la ventana de búsqueda del nombre de cada campo
+  tomaba **todo el texto desde el campo anterior**, sin límite. Para la
+  primera fila de la página 1 eso incluía el bloque de cabecera que trae
+  la identidad del contribuyente (RUC, razón social) — en una prueba
+  real contra el PDF de muestra, ese nombre y RUC terminaron escritos en
+  `form_fields.label` antes de que el error se detectara y la fila de
+  prueba se borrara de la base. Corregido para tomar como máximo las 2
+  líneas inmediatamente anteriores a cada código, más una lista
+  explícita de líneas de cabecera a ignorar (`Identificación:`, `Razón
+  Social`, `CÓDIGO VERIFICADOR`, etc.) — nunca se confía en que el PDF no
+  vuelva a traer algo parecido más adelante.
+
+### Sin cambio (deliberado)
+- La extracción sigue siendo heurística de texto plano, no usa la
+  posición real de cada bloque de texto en la página. Fórmulas impresas
+  dentro de una celda (ej. "482-484", "x 563") pueden generar una fila
+  con el código o la columna equivocados; líneas envueltas en dos
+  renglones pueden perder la primera mitad del nombre. Es exactamente el
+  tipo de error que la revisión obligatoria del admin existe para
+  atrapar — ver `NEXT_STEPS.md` para la alternativa basada en posición.

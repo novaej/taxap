@@ -20,11 +20,16 @@ abrir a usuarios reales.
 
 ## Por construir
 
-- [ ] **Extracción automática del PDF del formulario** (ADR-015, paso
-      "Subir PDF → extraer"). Las pantallas de administración
-      (`/admin/formularios`) existen desde el 2026-10-04, pero el PDF solo
-      se usa para calcular su `sha256` -- cada casillero se ingresa a mano
-      después de subirlo. No hay parser de la capa de texto todavía.
+- [ ] **Mejorar la extracción automática del PDF del formulario**
+      (`src/services/forms/pdf-field-extractor.ts`, desde el 2026-10-04).
+      Es heurística de texto plano -- sin datos de posición/layout real
+      del PDF -- y se sabe que falla en líneas envueltas y en fórmulas
+      impresas dentro de la propia celda (ej. "482-484"). Funciona bien
+      para el caso común (nombre + código + bruto/neto/impuesto en una
+      sola línea) y el admin revisa/corrige el resto antes de publicar
+      (ADR-015), pero una extracción basada en la posición real de cada
+      bloque de texto (via `pdfjs-dist` directo, no solo su texto plano)
+      sería más precisa.
 - [ ] **Cálculo de `result_mappings`** (ADR-015, la cascada de 4 niveles:
       versión anterior → coincidencia por atributos → IA → sin
       casillero). Hoy un admin puede publicar un `form_version` con sus

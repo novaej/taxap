@@ -79,6 +79,22 @@ clasificación no se puede limpiar después, ni a mano. Para pruebas
 descartables, evitar transiciones de estado sobre contribuyentes/períodos que
 no se puedan dejar así para siempre.
 
+## Extracción del PDF del formulario
+
+**Antes de ampliar `LABEL_LOOKBACK_LINES` o tocar `BOILERPLATE_LINE` en
+`src/services/forms/pdf-field-extractor.ts`, volver a probar contra un
+PDF real.** La primera versión de ese código tomaba todo el texto desde
+el campo anterior como posible nombre del campo, sin límite -- y en una
+prueba real contra el PDF de muestra, eso bastó para que el RUC y la
+razón social del contribuyente (repetidos en la cabecera de cada página)
+terminaran escritos en `form_fields.label` antes de que alguien lo
+notara. Se corrigió acotando la ventana a 2 líneas y agregando una lista
+explícita de líneas de cabecera a ignorar, pero ambas son parches sobre
+un PDF concreto, no una garantía general. Cualquier cambio a ese archivo
+necesita repetir la prueba: extraer de `samples/*.pdf` (nunca versionado,
+trae datos personales) y buscar el RUC/nombre del contribuyente en la
+salida antes de confiar en ella.
+
 ## Fechas
 
 **Una fecha guardada como `@db.Date` se muestra un día (o un mes) antes

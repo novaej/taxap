@@ -297,9 +297,23 @@ de `admin/layout.tsx` lo dice explícitamente en la pantalla.
   (`crypto`, igual que `uploadSourceFiles()` en ingesta) y crea un
   `FormVersion` en `DRAFT`. **El PDF no se guarda en ningún punto** — ni
   el archivo ni su contenido, solo el hash, tal como exige ADR-015.
-  **No hay extracción automática del texto todavía**
-  (`NEXT_STEPS.md`): el campo subido solo sirve para el hash de
-  trazabilidad.
+  También intenta extraer sus casilleros con
+  `extractCandidateFields()` (`src/services/forms/pdf-field-extractor.ts`,
+  pura, sin I/O — recibe el texto ya extraído por `pdf-parse` como
+  string): heurística de texto plano, sin datos de posición/layout real
+  detrás, así que acierta el caso común (código + nombre + bruto/neto/
+  impuesto en una sola línea) y falla de forma predecible en el resto
+  (líneas envueltas, fórmulas impresas en la propia celda como
+  "482-484"). Deliberadamente conservadora con cuánto texto atrás toma
+  como nombre del campo (como mucho 2 líneas) — el motivo no es solo
+  precisión: las primeras líneas de cada página repiten la identidad del
+  contribuyente (RUC, razón social) y una ventana de búsqueda más larga
+  la metía directo en `form_fields.label` en pruebas reales contra el
+  PDF de muestra. Un PDF escaneado sin capa de texto, o cualquier fallo
+  de lectura, deja el borrador sin casilleros — nunca un error duro.
+  Todas las filas, generadas o no, quedan editables y borrables en la
+  pantalla siguiente antes de publicar (ADR-015: la revisión del admin
+  nunca es opcional, la calidad de la extracción no cambia eso).
 - **`addFormField()`** agrega un casillero (código, nombre oficial,
   sección, tipo de columna) a mano, uno por uno, mientras la versión
   esté en `DRAFT`. El propio esquema (`@@unique([formVersionId, code])`)

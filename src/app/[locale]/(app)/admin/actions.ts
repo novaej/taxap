@@ -2,8 +2,10 @@
 
 import crypto from 'crypto';
 import { revalidatePath } from 'next/cache';
+import { PDFParse } from 'pdf-parse';
 import { asAdmin } from '@/lib/db';
 import { requireAdmin } from '@/lib/session';
+import { extractCandidateFields } from '@/services/forms/pdf-field-extractor';
 import type { ColumnKind, TaxRateType } from '@prisma/client';
 
 /**
@@ -30,14 +32,20 @@ export async function getFormVersion(formVersionId: string) {
 export interface CreateFormVersionDraftResult {
   success: boolean;
   formVersionId?: string;
+  candidateFieldCount?: number;
   error?: 'ALREADY_EXISTS' | 'EMPTY_FILE' | 'UNKNOWN';
 }
 
 /**
- * Sube el PDF solo para calcular su sha256 (ADR-015: "el PDF original no
- * se guarda"). No hay extracción automática del texto todavía
- * (NEXT_STEPS.md) -- el admin agrega cada campo a mano en la pantalla
- * siguiente, revisándolos antes de publicar.
+ * Sube el PDF, calcula su sha256 (ADR-015: "el PDF original no se
+ * guarda") y hace un primer intento automático de extraer los
+ * casilleros de su capa de texto (`extractCandidateFields`). La
+ * extracción es heurística, no hay capa de posición/layout real detrás
+ * -- un PDF escaneado sin texto no produce nada, y una fila ambigua
+ * puede salir con el código o el tipo de columna equivocado. Por eso
+ * cada fila queda editable y borrable en la pantalla siguiente: el
+ * admin revisa y corrige antes de publicar, nunca se confía en la
+ * extracción por sí sola.
  */
 export async function createFormVersionDraft(input: {
   formCode: string;
@@ -54,9 +62,21 @@ export async function createFormVersionDraft(input: {
   const buffer = Buffer.from(await file.arrayBuffer());
   const sourceSha256 = crypto.createHash('sha256').update(buffer).digest('hex');
 
+  let candidates: ReturnType<typeof extractCandidateFields> = [];
   try {
-    const version = await asAdmin((tx) =>
-      tx.formVersion.create({
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    await parser.destroy();
+    candidates = extractCandidateFields(result.text);
+  } catch {
+    // Scanned PDF with no text layer, or an unreadable file -- the draft
+    // is still created empty; the admin enters fields by hand instead.
+    candidates = [];
+  }
+
+  try {
+    const version = await asAdmin(async (tx) => {
+      const created = await tx.formVersion.create({
         data: {
           formCode: input.formCode,
           label: input.label,
@@ -66,10 +86,23 @@ export async function createFormVersionDraft(input: {
           importedBy: userId,
           importedAt: new Date(),
         },
-      })
-    );
+      });
+      if (candidates.length > 0) {
+        await tx.formField.createMany({
+          data: candidates.map((c, i) => ({
+            formVersionId: created.id,
+            code: c.code,
+            label: c.label,
+            columnKind: c.columnKind,
+            displayOrder: i,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      return created;
+    });
     revalidatePath('/admin/formularios');
-    return { success: true, formVersionId: version.id };
+    return { success: true, formVersionId: version.id, candidateFieldCount: candidates.length };
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes('Unique constraint')) {
       return { success: false, error: 'ALREADY_EXISTS' };
