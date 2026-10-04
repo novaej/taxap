@@ -226,6 +226,12 @@
     "viewDetail": "Ver detalle",
     "noFieldFound": "Sin casillero definitivo",
     "lockPeriod": "Marcar período como declarado",
-    "reopenPeriod": "Reabrir período"
+    "reopenPeriod": "Reabrir período",
+    "overviewHeading": "¿Por dónde empezar?",
+    "overviewStartHere": "empezar aquí",
+    "overviewIngestaDescription": "Cargar los archivos del SRI de comprobantes recibidos o emitidos.",
+    "overviewVentasDescription": "Marcar el destino de las ventas con IVA 0%.",
+    "overviewConciliacionDescription": "Clasificar las compras con IVA > 0 por proveedor.",
+    "overviewPredeclaracionDescription": "Ver los resultados calculados y, cuando corresponda, marcar el período como declarado."
   }
 }

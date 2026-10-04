@@ -47,9 +47,19 @@ Dos layouts anidados bajo `(app)`, más un componente de barra lateral:
   `usePathname()`.
 - **`[taxpayerId]/layout.tsx`** — envuelve todo lo que cuelga de un
   contribuyente (`periodos`, `editar`). Franja secundaria: razón social +
-  enlaces "Períodos" / "Editar contribuyente". Llama a `getTaxpayer()` una
-  vez por request; cada página hija puede volver a consultarlo si necesita
-  más que el nombre (no hay memoización entre layout y página todavía).
+  dos botones de icono ("Períodos" = `Calendar`, "Editar contribuyente" =
+  `SquarePen`, cada uno con `title`/`aria-label` ya que no llevan texto
+  visible). Llama a `getTaxpayer()` una vez por request; cada página hija
+  puede volver a consultarlo si necesita más que el nombre (no hay
+  memoización entre layout y página todavía).
+
+Las tarjetas de `/taxpayers` y de `/[taxpayerId]/periodos` siguen el
+mismo patrón: un `<Link>` envuelve el nombre/ícono (navegación principal,
+un clic entra al contribuyente o al período) y los controles secundarios
+—botones de icono para editar, un `Select` o un botón de borrar— quedan
+como hermanos del `<Link>` dentro del mismo `CardHeader`, nunca anidados
+dentro de él (un `<button>` dentro de un `<a>` es HTML inválido y rompe
+el foco de teclado).
 
 **Modales en vez de formularios inline** — crear un período
 (`periodos-client.tsx`), una versión de formulario y agregar un casillero
@@ -242,6 +252,16 @@ bloque:
 período)
 **Server Actions:** `computePeriodResults()`, `lockPeriod()`,
 `reopenPeriod()` (`actions.ts` del período)
+
+**Esta ruta no siempre muestra resultados.** `page.tsx` cuenta
+`invoices_received` + `invoices_issued` del período; en cero, renderiza
+`PeriodOverview` (`period-overview.tsx`) en vez de
+`PreDeclaracionClient` — cuatro tarjetas grandes, una por paso del flujo,
+la primera ("Ingesta") marcada como punto de partida. Antes de esto, un
+período recién creado caía directo en una vista de resultados vacíos con
+el factor bloqueado, que se leía como roto, no como vacío. En cuanto el
+período tiene al menos un comprobante, vuelve a mostrar la vista de
+resultados de siempre.
 
 **`computePeriodResults()`** llama a `calculatePeriodResults()`
 (`src/domain/iva/calculator.ts`) sobre los comprobantes del período — pura

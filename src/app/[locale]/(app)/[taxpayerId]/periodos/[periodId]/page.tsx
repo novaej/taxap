@@ -5,6 +5,7 @@ import { getCurrentUserId } from '@/lib/session';
 import { getPeriodResults } from './actions';
 import { PreDeclaracionClient } from './predeclaracion-client';
 import { PeriodStepNav } from './period-step-nav';
+import { PeriodOverview } from './period-overview';
 
 export default async function PreDeclaracionPage({
   params,
@@ -17,9 +18,14 @@ export default async function PreDeclaracionPage({
   const nav = await getTranslations('PeriodNav');
 
   const userId = await getCurrentUserId();
-  const period = await withUser(userId, (tx) =>
-    tx.taxPeriod.findUniqueOrThrow({ where: { id: periodId } })
-  );
+  const { period, invoiceCount } = await withUser(userId, async (tx) => {
+    const [period, receivedCount, issuedCount] = await Promise.all([
+      tx.taxPeriod.findUniqueOrThrow({ where: { id: periodId } }),
+      tx.invoiceReceived.count({ where: { taxPeriodId: periodId } }),
+      tx.invoiceIssued.count({ where: { taxPeriodId: periodId } }),
+    ]);
+    return { period, invoiceCount: receivedCount + issuedCount };
+  });
   const results = await getPeriodResults(taxpayerId, periodId);
 
   return (
@@ -43,14 +49,34 @@ export default async function PreDeclaracionPage({
         }}
       />
 
-      <h1 className="mb-6 text-2xl font-bold">{t('title')}</h1>
-
-      <PreDeclaracionClient
-        initialResults={results.map((r) => ({ key: r.resultKey, value: r.value.toString() }))}
-        taxpayerId={taxpayerId}
-        periodId={periodId}
-        isFiled={period.status === 'FILED'}
-      />
+      {invoiceCount === 0 ? (
+        <PeriodOverview
+          taxpayerId={taxpayerId}
+          periodId={periodId}
+          labels={{
+            heading: t('overviewHeading'),
+            ingestaTitle: nav('ingesta'),
+            ingestaDescription: t('overviewIngestaDescription'),
+            ventasTitle: nav('ventas'),
+            ventasDescription: t('overviewVentasDescription'),
+            conciliacionTitle: nav('conciliacion'),
+            conciliacionDescription: t('overviewConciliacionDescription'),
+            predeclaracionTitle: nav('predeclaracion'),
+            predeclaracionDescription: t('overviewPredeclaracionDescription'),
+            startHere: t('overviewStartHere'),
+          }}
+        />
+      ) : (
+        <>
+          <h1 className="mb-6 text-2xl font-bold">{t('title')}</h1>
+          <PreDeclaracionClient
+            initialResults={results.map((r) => ({ key: r.resultKey, value: r.value.toString() }))}
+            taxpayerId={taxpayerId}
+            periodId={periodId}
+            isFiled={period.status === 'FILED'}
+          />
+        </>
+      )}
     </div>
   );
 }

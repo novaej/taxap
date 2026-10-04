@@ -539,3 +539,29 @@ dejaban.
   renglones pueden perder la primera mitad del nombre. Es exactamente el
   tipo de error que la revisión obligatoria del admin existe para
   atrapar — ver `NEXT_STEPS.md` para la alternativa basada en posición.
+
+## [2026-10-04] Rediseño de tarjetas, barra superior con iconos, y un wizard para períodos vacíos
+
+### Agregado
+- **`PeriodOverview`** (`period-overview.tsx`): cuatro tarjetas grandes
+  con los pasos del período (Ingesta, Ventas, Conciliación,
+  Pre-declaración), la primera marcada "empezar aquí". `page.tsx` la
+  muestra en vez de `PreDeclaracionClient` cuando el período no tiene
+  ningún comprobante todavía — antes, un período recién creado caía
+  directo en una vista de resultados vacíos con el factor bloqueado, que
+  se leía como roto, no como vacío.
+- Tarjetas de `/taxpayers` y `/[taxpayerId]/periodos` rediseñadas: grilla
+  de 2 columnas, ícono junto al nombre (`Building2`/`Calendar`), RUC/
+  régimen/periodicidad como `Badge` en vez de texto plano, y botones de
+  icono (`SquarePen` editar, `Trash2` eliminar) en vez de enlaces de
+  texto. El nombre/ícono principal sigue siendo un `<Link>`; los
+  controles secundarios son hermanos suyos, nunca anidados dentro (un
+  `<button>` dentro de un `<a>` es HTML inválido).
+- `[taxpayerId]/layout.tsx`: la franja superior pasó de enlaces de texto
+  a botones de icono (mismo lenguaje visual que las tarjetas), con
+  `bg-card` + sombra en vez del `bg-muted` plano anterior.
+
+### Sin cambio
+- El alta/edición de contribuyente sigue en página completa, no modal —
+  tiene demasiados campos (actividades económicas de largo variable)
+  para un diálogo.

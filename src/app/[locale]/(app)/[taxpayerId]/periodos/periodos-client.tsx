@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { Calendar, Trash2 } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -155,22 +156,23 @@ export function PeriodosClient({
       {periods.length === 0 ? (
         <p className="text-muted-foreground">{t('emptyState')}</p>
       ) : (
-        <div className="space-y-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {periods.map((period) => {
             const date = new Date(period.periodStart);
             const monthNum = date.getUTCMonth() + 1;
             return (
-              <Card key={period.id}>
+              <Card key={period.id} className="transition-shadow hover:shadow-md">
                 <CardHeader className="flex-row items-center justify-between gap-2">
                   <Link
                     href={`/${taxpayerId}/periodos/${period.id}`}
-                    className="flex-1 hover:underline"
+                    className="flex min-w-0 flex-1 items-center gap-2 group"
                   >
-                    <CardTitle className="text-base">
+                    <Calendar className="size-4 shrink-0 text-muted-foreground" />
+                    <CardTitle className="truncate text-base group-hover:underline">
                       {t(`months.${monthNum}`)} {date.getUTCFullYear()}
                     </CardTitle>
                   </Link>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     {period.status === 'FILED' ? (
                       <Badge variant="outline">{t('statusOptions.FILED')}</Badge>
                     ) : (
@@ -178,7 +180,7 @@ export function PeriodosClient({
                         value={period.status}
                         onValueChange={(status) => handleStatusChange(period.id, status)}
                       >
-                        <SelectTrigger className="h-8 w-40">
+                        <SelectTrigger className="h-8 w-36">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -190,8 +192,14 @@ export function PeriodosClient({
                       </Select>
                     )}
                     {period.status === 'DRAFT' && (
-                      <Button variant="outline" size="sm" onClick={() => handleDelete(period.id)}>
-                        {common('delete')}
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        title={common('delete')}
+                        aria-label={common('delete')}
+                        onClick={() => handleDelete(period.id)}
+                      >
+                        <Trash2 className="size-4" />
                       </Button>
                     )}
                   </div>
