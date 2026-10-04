@@ -368,3 +368,51 @@ dejaban.
   contribuyente de prueba quedó sin forma de borrarse desde el rol `taxap`.
   Es coherente con la bitácora inmutable de ADR-013, así que se documenta
   en `TROUBLESHOOTING.md` en vez de tratarse como bug.
+
+## [2026-10-04] Editar contribuyente y período; menú de navegación
+
+### Agregado
+- `/[locale]/(app)/[taxpayerId]/editar` — edición de contribuyente
+  (razón social, nombre comercial, régimen, periodicidad, actividades);
+  mismo formulario que el alta (`taxpayers/taxpayer-form.tsx`, ahora
+  compartido entre `taxpayers/new` y esta pantalla).
+- `updateTaxpayer()` (`[taxpayerId]/actions.ts`) — recalcula
+  `activityFingerprint` igual que `createTaxpayer()`; RUC duplicado
+  devuelve `RUC_IN_USE` excluyendo al propio contribuyente de la
+  comprobación.
+- `updatePeriodStatus()` y `deletePeriod()`
+  (`[taxpayerId]/periodos/actions.ts`): transición manual
+  `DRAFT ↔ UNDER_REVIEW` con evento en `classification_events`
+  (ADR-013), y borrado de un período solo si está en `DRAFT` y sin
+  comprobantes cargados.
+- `src/app/[locale]/(app)/layout.tsx` — menú persistente (nombre de la
+  app + logout) en toda la aplicación autenticada. No existía ningún
+  layout compartido antes de esto; cada pantalla armaba su propio
+  encabezado.
+- `src/app/[locale]/(app)/[taxpayerId]/layout.tsx` — franja secundaria
+  con la razón social y enlaces a "Períodos" / "Editar contribuyente"
+  para todo lo que cuelga de un contribuyente.
+
+### Cambiado
+- `src/components/logout-button.tsx` — reubicado desde
+  `taxpayers/logout-button.tsx`; ahora lo usa el layout de la app, no la
+  pantalla de lista de contribuyentes.
+- Botón "Reabrir período" agregado a `predeclaracion-client.tsx`: la
+  función `reopenPeriod()` existía desde el bloqueo de período
+  (entrada del 2026-10-02 de este changelog) pero ningún botón la
+  llamaba.
+- `taxpayers/page.tsx` y `[taxpayerId]/periodos/page.tsx` perdieron sus
+  encabezados ad hoc (título + logout, o enlace de vuelta con la razón
+  social) — ese rol lo cubren los dos layouts nuevos.
+
+### Hallazgo (sin cambio de código)
+- Verificando `updatePeriodStatus()`/`deletePeriod()` contra la base
+  real, un período con al menos un evento en `classification_events`
+  resultó imborrable incluso con el rol superusuario de Postgres — no es
+  RLS (que el superusuario ignora), es el disparador
+  `reject_classification_event_mutation()`
+  (`prisma/migrations/20260930113100_add_rls/migration.sql`), que
+  rechaza `DELETE`/`UPDATE` sobre esa tabla sin excepción. La bitácora es
+  append-only de verdad. Documentado en `TROUBLESHOOTING.md`: para datos
+  de prueba descartables, evitar transiciones de estado que generen un
+  evento si hace falta poder limpiarlos después.

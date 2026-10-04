@@ -64,6 +64,21 @@ fila, no lo filtra a cero filas visibles. Es deliberado: un contribuyente no
 se borra desde la aplicación. Si hace falta borrar uno en desarrollo, se
 hace a mano con el rol superusuario de Postgres (nunca con el rol `taxap`).
 
+**Ni siquiera el superusuario puede borrar una fila de `classification_events`.**
+A diferencia de lo anterior, esto no es RLS (que el superusuario sí ignora) —
+es un disparador real, `reject_classification_event_mutation()`
+(`prisma/migrations/20260930113100_add_rls/migration.sql`, ADR-013), que
+rechaza incondicionalmente cualquier `DELETE`/`UPDATE` sobre esa tabla para
+cualquier rol. Un `taxPeriod` con al menos un evento registrado
+(cualquier cambio de estado: `lockPeriod`, `reopenPeriod`, el nuevo
+`updatePeriodStatus`) queda, por lo tanto, permanentemente imborrable, y con
+él su `taxpayer`. Es intencional — la bitácora es append-only de verdad, no
+solo "difícil de editar desde la app" — pero importa saberlo antes de sembrar
+datos de prueba contra la base real: cualquier dato que dispare un evento de
+clasificación no se puede limpiar después, ni a mano. Para pruebas
+descartables, evitar transiciones de estado sobre contribuyentes/períodos que
+no se puedan dejar así para siempre.
+
 ## Rutas y sesión
 
 **Una ruta protegida no redirige a `/login` sin sesión.** Revisar que el

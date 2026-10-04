@@ -16,7 +16,8 @@ NextAuth v5, correo y contraseña (`src/lib/auth.ts`), sesión JWT,
   ningún contribuyente.
 - **Login** — `/[locale]/login`, `signIn()` de `next-auth/react` desde el
   cliente.
-- **Logout** — botón en `/taxpayers` (`taxpayers/logout-button.tsx`),
+- **Logout** — botón en el header de `(app)/layout.tsx`
+  (`src/components/logout-button.tsx`), visible en toda la aplicación,
   `signOut()` de `next-auth/react`.
 - **Protección de rutas** — `src/proxy.ts` es una lista blanca, no una
   lista negra: toda ruta exige sesión salvo `/login`, `/register` y la
@@ -25,30 +26,64 @@ NextAuth v5, correo y contraseña (`src/lib/auth.ts`), sesión JWT,
   Next.js 16 renombró la convención de `middleware.ts` a `proxy.ts`; con un
   directorio `src/`, además, solo reconoce el archivo dentro de `src/`.
 
+## Navegación
+
+Dos layouts anidados, ninguno existía antes de esta sección:
+
+- **`(app)/layout.tsx`** — envuelve todas las pantallas autenticadas.
+  Header fijo: nombre de la app (enlace a `/taxpayers`) + logout. Es el
+  único lugar de la aplicación con un menú persistente.
+- **`[taxpayerId]/layout.tsx`** — envuelve todo lo que cuelga de un
+  contribuyente (`periodos`, `editar`). Franja secundaria: razón social +
+  enlaces "Períodos" / "Editar contribuyente". Llama a `getTaxpayer()` una
+  vez por request; cada página hija puede volver a consultarlo si necesita
+  más que el nombre (no hay memoización entre layout y página todavía).
+
+Dentro de un período, cada pantalla (`ingesta`, `ventas`, `conciliacion`,
+la raíz de pre-declaración) sigue con su propio enlace "← Volver" al nivel
+anterior — eso no lo cubre el layout, porque es navegación de ida y vuelta
+dentro del flujo de un período, no del contribuyente.
+
 ## 0. Contribuyentes y períodos
 
 **Rutas:** `/[locale]/(app)/taxpayers`, `/[locale]/(app)/taxpayers/new`,
-`/[locale]/(app)/[taxpayerId]/periodos`
+`/[locale]/(app)/[taxpayerId]/editar`, `/[locale]/(app)/[taxpayerId]/periodos`
 **Server Actions:** `getMyTaxpayers()`, `createTaxpayer()`
-(`taxpayers/actions.ts`); `getTaxpayer()`, `getTaxpayerPeriods()`,
-`createPeriod()` (`[taxpayerId]/periodos/actions.ts`)
+(`taxpayers/actions.ts`); `getTaxpayer()`, `updateTaxpayer()`
+(`[taxpayerId]/actions.ts`); `getTaxpayerPeriods()`, `createPeriod()`,
+`updatePeriodStatus()`, `deletePeriod()` (`[taxpayerId]/periodos/actions.ts`)
 
 La portada (`/[locale]`) redirige: con sesión a `/taxpayers`, sin sesión a
 `/login`. Ya no hay rutas de demostración con ids fijos.
 
 - `/taxpayers` lista los contribuyentes del usuario (vía `user_taxpayers`,
-  filtrado por RLS) y lleva a `/taxpayers/new` o a
-  `/[taxpayerId]/periodos`.
-- `createTaxpayer()` calcula `activityFingerprint` con
+  filtrado por RLS) y lleva a `/taxpayers/new`, `/[taxpayerId]/periodos` o
+  `/[taxpayerId]/editar`.
+- `createTaxpayer()`/`updateTaxpayer()` calculan `activityFingerprint` con
   `computeActivityFingerprint()` (`domain/iva/activity-fingerprint.ts` —
-  hash de las actividades económicas ordenadas, ADR-006) y crea el
-  `taxpayer` y su fila en `user_taxpayers` en la misma transacción
-  (`withUser`). Un RUC duplicado devuelve `RUC_IN_USE`, no una excepción sin
-  manejar.
+  hash de las actividades económicas ordenadas, ADR-006) cada vez que se
+  guardan actividades. **La revalidación de `supplier_rules` cuando cambia
+  la huella (ADR-006) no está implementada** — el campo se recalcula y se
+  guarda, nada más. Un RUC duplicado devuelve `RUC_IN_USE` en ambas
+  acciones, no una excepción sin manejar. El formulario (`taxpayer-form.tsx`,
+  compartido entre alta y edición) no deja editar el RUC más allá de la
+  validez del formato; si cambia, se vuelve a chequear unicidad excluyendo
+  al propio contribuyente.
 - `/[taxpayerId]/periodos` lista los períodos del contribuyente y permite
   crear uno nuevo (año + mes → `periodStart`/`periodEnd`, mensual e IVA por
   ahora). La restricción de unicidad real es
   `(taxpayerId, taxType, periodStart)`, no año/mes como tales.
+  - **Cambiar de estado** (`updatePeriodStatus`) solo mueve
+    `DRAFT ↔ UNDER_REVIEW` y escribe un evento en `classification_events`
+    (ADR-013, regla 6). `FILED` queda fuera a propósito — es
+    `lockPeriod()`/`reopenPeriod()` (pantalla de pre-declaración, ver
+    sección 4) porque esos dos además fijan/limpian `locked_at`, que
+    dispara el candado de comprobantes de Postgres.
+  - **Borrar un período** (`deletePeriod`) solo funciona en `DRAFT` y sin
+    comprobantes (`invoices_received`/`invoices_issued` en cero) — si
+    cualquiera de las dos condiciones falla, devuelve `NOT_DRAFT` o
+    `HAS_DATA` sin tocar nada. Es la única vía de borrado que existe sobre
+    un período; no hay equivalente para un contribuyente (ver más abajo).
 
 **Los contribuyentes no se pueden borrar.** La tabla `taxpayers` solo tiene
 políticas RLS de `SELECT`/`INSERT`/`UPDATE` — ningún `DELETE`, ni siquiera
@@ -56,7 +91,13 @@ para `is_system_admin()`. Con `FORCE ROW LEVEL SECURITY`, la ausencia de una
 política para un comando bloquea ese comando por completo, no solo lo
 filtra. Es deliberado (coherente con la bitácora inmutable de ADR-013): si
 se necesita en el futuro, es una decisión de producto nueva, no un `DELETE`
-que falte agregar.
+que falte agregar. `classification_events` va un paso más allá: un
+disparador en Postgres rechaza `DELETE`/`UPDATE` sobre esa tabla
+incondicionalmente, para cualquier rol, superusuario incluido — no es RLS
+(que el superusuario sí ignora), es un trigger real. Cualquier período con
+al menos un evento (cualquier transición de estado) queda permanentemente
+imborrable, y con él su contribuyente. Ver
+[`TROUBLESHOOTING.md`](../../TROUBLESHOOTING.md).
 
 ## Acceso a datos
 
@@ -204,7 +245,9 @@ sortee ([ADR-013](../adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md)).
 
 **`reopenPeriod()`** limpia `status`/`locked_at` y también escribe un
 evento — la reapertura en sí queda registrada, no solo lo que se edite
-después.
+después. Expuesta en la UI (`predeclaracion-client.tsx`) como el botón
+"Reabrir período", visible solo cuando `isFiled` — antes existía la
+función pero no había botón que la llamara.
 
 ## Pendiente de construir
 

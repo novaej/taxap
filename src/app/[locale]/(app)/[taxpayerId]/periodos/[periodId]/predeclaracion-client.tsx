@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { computePeriodResults, lockPeriod } from './actions';
+import { computePeriodResults, lockPeriod, reopenPeriod } from './actions';
 
 interface ResultRow {
   key: string;
@@ -41,6 +41,10 @@ export function PreDeclaracionClient({
 
   function markFiled() {
     startTransition(() => lockPeriod(taxpayerId, periodId));
+  }
+
+  function reopen() {
+    startTransition(() => reopenPeriod(taxpayerId, periodId));
   }
 
   const salesKeys = [
@@ -123,9 +127,13 @@ export function PreDeclaracionClient({
         </CardContent>
       </Card>
 
-      {!isFiled && (
+      {!isFiled ? (
         <Button onClick={markFiled} disabled={isPending}>
           {t('lockPeriod')}
+        </Button>
+      ) : (
+        <Button onClick={reopen} disabled={isPending} variant="outline">
+          {t('reopenPeriod')}
         </Button>
       )}
     </div>

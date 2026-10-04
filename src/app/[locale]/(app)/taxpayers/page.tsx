@@ -3,7 +3,6 @@ import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getMyTaxpayers } from './actions';
-import { LogoutButton } from './logout-button';
 
 export default async function TaxpayersPage() {
   const t = await getTranslations('Taxpayers');
@@ -11,10 +10,7 @@ export default async function TaxpayersPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t('title')}</h1>
-        <LogoutButton label={t('logout')} />
-      </div>
+      <h1 className="mb-6 text-2xl font-bold">{t('title')}</h1>
 
       {taxpayers.length === 0 ? (
         <Card>
@@ -50,12 +46,20 @@ export default async function TaxpayersPage() {
                       {t('periodicity')}: {t(`periodicityOptions.${taxpayer.ivaPeriodicity}`)}
                     </div>
                   </div>
-                  <Link
-                    href={`/${taxpayer.id}/periodos`}
-                    className="mt-3 inline-block text-sm text-primary hover:underline"
-                  >
-                    {t('periodsLink')}
-                  </Link>
+                  <div className="mt-3 flex gap-4">
+                    <Link
+                      href={`/${taxpayer.id}/periodos`}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      {t('periodsLink')}
+                    </Link>
+                    <Link
+                      href={`/${taxpayer.id}/editar`}
+                      className="text-sm text-muted-foreground hover:underline"
+                    >
+                      {t('navEdit')}
+                    </Link>
+                  </div>
                 </CardContent>
               </Card>
             ))}

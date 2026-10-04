@@ -6,6 +6,8 @@
     "save": "Guardar",
     "cancel": "Cancelar",
     "confirm": "Confirmar",
+    "delete": "Eliminar",
+    "logout": "Cerrar sesión",
     "disclaimer": "Cálculo asistido, pendiente de revisión del responsable antes de presentarse al SRI. No sustituye el criterio profesional."
   },
   "Taxpayers": {
@@ -18,7 +20,10 @@
     "regime": "Régimen",
     "periodicity": "Periodicidad",
     "periodsLink": "Ver períodos →",
-    "logout": "Cerrar sesión",
+    "navPeriods": "Períodos",
+    "navEdit": "Editar contribuyente",
+    "editTitle": "Editar contribuyente",
+    "saveButton": "Guardar cambios",
     "newTitle": "Nuevo contribuyente",
     "tradeName": "Nombre comercial",
     "tradeNameOptional": "(opcional)",
@@ -56,6 +61,10 @@
     },
     "createButton": "Crear período",
     "alreadyExists": "Ya existe un período para ese mes",
+    "deleteConfirm": "¿Eliminar este período? No se puede deshacer.",
+    "hasDataError": "No se puede eliminar: ya tiene comprobantes cargados.",
+    "notDraftError": "Solo se pueden eliminar períodos en borrador.",
+    "statusUpdateError": "No se pudo actualizar el estado.",
     "months": {
       "1": "Enero", "2": "Febrero", "3": "Marzo", "4": "Abril",
       "5": "Mayo", "6": "Junio", "7": "Julio", "8": "Agosto",
@@ -156,6 +165,7 @@
     "whyHere": "¿Por qué aquí?",
     "viewDetail": "Ver detalle",
     "noFieldFound": "Sin casillero definitivo",
-    "lockPeriod": "Marcar período como declarado"
+    "lockPeriod": "Marcar período como declarado",
+    "reopenPeriod": "Reabrir período"
   }
 }
