@@ -39,10 +39,19 @@ Dos layouts anidados, ninguno existía antes de esta sección:
   vez por request; cada página hija puede volver a consultarlo si necesita
   más que el nombre (no hay memoización entre layout y página todavía).
 
-Dentro de un período, cada pantalla (`ingesta`, `ventas`, `conciliacion`,
-la raíz de pre-declaración) sigue con su propio enlace "← Volver" al nivel
-anterior — eso no lo cubre el layout, porque es navegación de ida y vuelta
-dentro del flujo de un período, no del contribuyente.
+Dentro de un período, las cuatro pantallas (`ingesta`, `ventas`,
+`conciliacion`, la raíz de pre-declaración) comparten
+`period-step-nav.tsx`: una barra de pestañas con los cuatro pasos en
+orden, el actual resaltado, cada uno un enlace directo a los otros tres.
+Reemplaza al enlace único "← Volver" que existía antes — ese enlace solo
+permitía retroceder un nivel, y **la raíz del período no tenía ningún
+enlace hacia las otras tres pantallas**: una vez creado un período, no
+había forma de llegar a ingesta/ventas/conciliación sin escribir la URL a
+mano. La barra de pasos no vive en ningún layout porque las cuatro rutas
+no comparten un segmento común en el árbol de Next.js (`periodId` está
+bajo `periodos/`, pero `ingesta`/`ventas`/`conciliacion` son hermanos de
+la raíz del período, no hijos suyos) — cada página la importa y la
+renderiza por su cuenta.
 
 ## 0. Contribuyentes y períodos
 

@@ -4,6 +4,7 @@ import { withUser } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/session';
 import { getPeriodResults } from './actions';
 import { PreDeclaracionClient } from './predeclaracion-client';
+import { PeriodStepNav } from './period-step-nav';
 
 export default async function PreDeclaracionPage({
   params,
@@ -13,6 +14,7 @@ export default async function PreDeclaracionPage({
   const { taxpayerId, periodId } = await params;
   const t = await getTranslations('PreDeclaracion');
   const common = await getTranslations('Common');
+  const nav = await getTranslations('PeriodNav');
 
   const userId = await getCurrentUserId();
   const period = await withUser(userId, (tx) =>
@@ -28,6 +30,19 @@ export default async function PreDeclaracionPage({
       >
         ← {common('back')}
       </Link>
+
+      <PeriodStepNav
+        taxpayerId={taxpayerId}
+        periodId={periodId}
+        current="predeclaracion"
+        labels={{
+          ingesta: nav('ingesta'),
+          ventas: nav('ventas'),
+          conciliacion: nav('conciliacion'),
+          predeclaracion: nav('predeclaracion'),
+        }}
+      />
+
       <h1 className="mb-6 text-2xl font-bold">{t('title')}</h1>
 
       <PreDeclaracionClient

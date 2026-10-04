@@ -71,6 +71,12 @@
       "9": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
     }
   },
+  "PeriodNav": {
+    "ingesta": "Ingesta",
+    "ventas": "Ventas emitidas",
+    "conciliacion": "Conciliación",
+    "predeclaracion": "Pre-declaración"
+  },
   "Ingesta": {
     "title": "Ingesta de archivos",
     "uploadHeading": "Cargar archivo",

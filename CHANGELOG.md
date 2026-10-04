@@ -416,3 +416,23 @@ dejaban.
   append-only de verdad. Documentado en `TROUBLESHOOTING.md`: para datos
   de prueba descartables, evitar transiciones de estado que generen un
   evento si hace falta poder limpiarlos después.
+
+## [2026-10-04] Barra de pasos del período: navegación completa adelante y atrás
+
+### Corregido
+- **La raíz de un período no tenía ningún enlace hacia ingesta, ventas o
+  conciliación.** Una vez creado un período, esas tres pantallas solo eran
+  alcanzables escribiendo la URL a mano — exactamente lo que esta serie de
+  cambios se propuso eliminar. Cada una de las cuatro pantallas del período
+  tampoco tenía forma de saltar a otra que no fuera "un paso atrás": el
+  único enlace era "← Volver" a la raíz.
+
+### Agregado
+- `period-step-nav.tsx` — barra de pestañas con los cuatro pasos del
+  período (Ingesta, Ventas emitidas, Conciliación, Pre-declaración) en
+  orden, el actual resaltado, cada uno enlazado directo a los otros tres.
+  Montada en las cuatro pantallas (`ingesta/page.tsx`, `ventas/page.tsx`,
+  `conciliacion/page.tsx`, la raíz del período), reemplazando el enlace
+  único "← Volver" de cada una.
+- Namespace `PeriodNav` en `messages/es.json` con las cuatro etiquetas
+  cortas de la barra.
