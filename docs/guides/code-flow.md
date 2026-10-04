@@ -229,7 +229,7 @@ Only vouchers with `IVA > 0` enter here
 │             ↓ no match
 ├─ Level 2 ── shared catalog (requires 3+ in agreement) — []  not implemented yet, ADR-007
 │             ↓ no match
-├─ Level 3 ── AI — null  not implemented yet, ADR-007
+├─ Level 3 ── AI (src/services/ai/) — null in no-AI mode, ADR-007
 │             ↓ no match
 └─ Level 4 ── manual review queue (processing_status = REQUIRES_MANUAL_REVIEW)
 ```
@@ -238,6 +238,34 @@ A voucher type outside the allowlist within the group sends the whole
 supplier to manual review without going through the cascade
 (`requiresManualReview()`, which uses the single boolean ingestion
 already computed — there's no separate second list of "standard types").
+
+**Level 3 (AI)** only runs when levels 1-2 wouldn't already decide —
+calling it after a supplier rule already matched would just be unused
+cost. `getAiClassifier()` (`src/services/ai/index.ts`) reads
+`AI_PROVIDER` (`claude` or `openai`, default `claude`) and returns
+`null` if that provider's key isn't set — the same no-AI-mode fallback
+as before, now reached through a real switch instead of a permanent
+stub. `ClaudeClassifier` and `OpenAiClassifier`
+(`src/services/ai/providers/`) implement the same `AiClassifier`
+interface: ask the bulk model first (`claude-haiku-4-5`, per CLAUDE.md's
+model table; `OPENAI_BULK_MODEL`, default `gpt-4o-mini`, for the other
+provider), and only escalate to the stronger model
+(`claude-opus-5`/`OPENAI_ESCALATION_MODEL`) when the bulk answer's
+confidence is below 0.80 — the same bar
+`classification-cascade.ts`'s `level3_aiSuggestion()` requires to accept
+it. Both use structured output (Zod schema via each SDK's own helper),
+never prose parsing. The request sent to either provider carries only
+the *supplier's* RUC, name, and document type — never the taxpayer's own
+identity (ADR-007). A `classification_events` row sourced from AI
+records which `model_id` and `prompt_version` produced it
+(`PROMPT_VERSION` in `src/services/ai/types.ts`, bumped whenever the
+prompt's wording or schema changes).
+
+**Not yet done:** the Batch API pass CLAUDE.md's model table calls for
+("Batch API para el pase masivo") — `classifyPeriod()` currently asks
+per supplier, synchronously, inside the loop. Fine at today's volume;
+revisit once a period's supplier count makes that slow
+([`NEXT_STEPS.md`](../../NEXT_STEPS.md)).
 
 **`applyManualClassification()`** — manual classification, single or in
 bulk:
@@ -366,6 +394,6 @@ relevant items for understanding the current state:
 - Automatic PDF extraction and computing `result_mappings`
   (ADR-015) — without this, pre-filing still shows no field codes even
   when a form has already been published.
-- Shared catalog (level 2) and AI (level 3) of the classification
-  cascade — today `classifyPeriod()` passes them as empty/null; only
-  levels 1 and 4 are active.
+- Shared catalog (level 2) of the classification cascade — today
+  `classifyPeriod()` passes it as an empty array; levels 1, 3, and 4 are
+  active (level 3's `src/services/ai/`, since 2026-10-04).

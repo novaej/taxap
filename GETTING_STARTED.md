@@ -75,12 +75,17 @@ openssl rand -base64 32
 DATABASE_URL="postgresql://taxap:taxap_dev_password@localhost:5432/taxap_dev?schema=public"
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="<the secret generated above>"
+AI_PROVIDER="claude"
 ANTHROPIC_API_KEY=""
 ```
 
-`ANTHROPIC_API_KEY` is **optional**. Without it, the system runs in
+`AI_PROVIDER`/`ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` if `AI_PROVIDER=openai`)
+are **optional**. Without a key for the selected provider, the system runs in
 no-AI mode: the cascade runs tiers 1, 2, and 4, and more vouchers fall
 through to the review inbox. Nothing breaks. See [ADR-007](docs/adr/007-modo-sin-ia-y-catalogo-compartido.md).
+The two providers (`src/services/ai/`) implement the same `AiClassifier`
+interface, so switching one for the other is just `AI_PROVIDER` -- no code
+change.
 
 ## 3. Dependencies and schema
 

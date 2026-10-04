@@ -574,3 +574,53 @@ they left.
 ### No change
 - Taxpayer creation/editing remains a full page, not a modal — it has
   too many fields (variable-length economic activities) for a dialog.
+
+## [2026-10-04] Swappable AI classification engine (cascade level 3, finally wired up)
+
+### Added
+- `src/services/ai/` — a provider-agnostic `AiClassifier` interface
+  (`classifySupplier()`) with two implementations behind it,
+  `ClaudeClassifier` and `OpenAiClassifier`, picked at runtime by
+  `getAiClassifier()` reading `AI_PROVIDER` (`claude`/`openai`, default
+  `claude`). Swapping providers is an env var, not a code change — the
+  caller in `conciliacion/actions.ts` only ever sees the interface.
+- `ClaudeClassifier` uses `claude-haiku-4-5` for the bulk pass and
+  escalates to `claude-opus-5` only when the bulk answer's confidence is
+  below 0.80 — the project's own documented model choice (CLAUDE.md →
+  "AI models"), not a generic default. `OpenAiClassifier` mirrors the
+  same bulk/escalation shape with `gpt-4o-mini`/`gpt-4o`, both
+  overridable via `OPENAI_BULK_MODEL`/`OPENAI_ESCALATION_MODEL` since
+  OpenAI's model names churn independently of this project. Both use
+  structured output (a shared Zod schema, via each SDK's own helper —
+  `zodOutputFormat` / `zodResponseFormat`), never prose parsing.
+- `classifyPeriod()` (`conciliacion/actions.ts`) now actually calls
+  level 3 of the cascade instead of passing `null` — the stub ADR-007
+  described since before any code existed. Only called when levels 1-2
+  wouldn't already decide (a supplier rule hit makes an AI call pure
+  unused cost). The request sent to either provider carries only the
+  *supplier's* RUC, name, and document type — never the taxpayer's own
+  identity (ADR-007's privacy rule, enforced by the request shape itself:
+  there's no field to put a taxpayer identifier in even by mistake).
+  `classification_events` rows sourced from AI now record `model_id` and
+  `prompt_version` (CLAUDE.md → "Every response logs `model_id` and
+  `prompt_version`"); those two columns existed on the model since the
+  initial migration and had never been written to.
+- `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BULK_MODEL`,
+  `OPENAI_ESCALATION_MODEL` added to `.env.local.example`.
+
+### Removed
+- `.example.env` — a pre-code planning artifact from 2026-09-20 that
+  was never reconciled with the real implementation (it used
+  `AUTH_SECRET`/`AUTH_URL`, which this project never adopted — the real
+  file is `.env.local.example`, with `NEXTAUTH_SECRET`/`NEXTAUTH_URL`).
+  Same category of cleanup as the pre-code docs removed on 2026-10-02.
+  `docs/guides/documentation-checklist.md` now points at
+  `.env.local.example`, the file every other doc already used.
+
+### No change (deliberate)
+- No Batch API yet. CLAUDE.md's model table calls for it ("Batch API
+  para el pase masivo"), but `classifyPeriod()` asks per supplier,
+  synchronously, inside its loop — correct at today's volume, revisit
+  once a period's supplier count makes it slow (`NEXT_STEPS.md`).
+- Cascade level 2 (shared catalog) still passes an empty array — only
+  level 3 (AI) was built here.

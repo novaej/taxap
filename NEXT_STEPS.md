@@ -36,6 +36,17 @@ opening to real users.
       can publish a `form_version` with its `form_fields`, but nothing
       builds the result→field relationship yet — the pre-filing still
       only shows the domain's keys.
+- [ ] **Batch API for the AI classification pass** (`src/services/ai/`,
+      since 2026-10-04; CLAUDE.md's model table calls for it —
+      "Batch API para el pase masivo"). `classifyPeriod()` currently
+      calls the AI classifier per supplier, synchronously, inside its
+      loop. Correct, but not the 50%-cheaper/async path CLAUDE.md
+      describes — worth it once a period's supplier count makes the
+      synchronous pass noticeably slow.
+- [ ] **Shared catalog, cascade level 2** (ADR-007). `classifyPeriod()`
+      still passes an empty array; level 2 (anonymous, crowdsourced
+      agreement across taxpayers) was never built. Level 3 (AI) shipped
+      2026-10-04.
 - [ ] **RLS regression test.** It has been manually verified against the
       real database several times, but it hasn't been left as a
       reproducible artifact (`tests/rls/`, per

@@ -48,7 +48,7 @@ What to update depending on the kind of change.
 
 ## New environment variable
 
-- [ ] `.example.env` — with a comment explaining what it's for
+- [ ] `.env.local.example` — with a comment explaining what it's for
 - [ ] `GETTING_STARTED.md` — if the user needs to configure it
 - [ ] `CHANGELOG.md`
 
@@ -71,6 +71,6 @@ What to update depending on the kind of change.
 | `CLAUDE.md` | A new hard rule or recurring mistake |
 | `CHANGELOG.md` | Every change |
 | `NEXT_STEPS.md` | A pending item is completed or discovered |
-| `.example.env` | A new environment variable |
+| `.env.local.example` | A new environment variable |
 | `GETTING_STARTED.md` | Installation steps or the quick-start walk-through change |
 | `TROUBLESHOOTING.md` | A new recurring environment/infrastructure error (not tax-related — that goes in `CLAUDE.md`) |
