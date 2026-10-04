@@ -282,17 +282,23 @@ PK compuesta `(tax, valid_from)`. Sin RLS.
 | `tax` | ENUM (`IVA`) |
 | `rate` | DECIMAL(5,4) |
 | `valid_from`, `valid_to` | DATE, `valid_to` nullable |
+| `source` | TEXT — de dónde viene el valor (CLAUDE.md → "Valores normativos") |
+| `verified_at` | DATE — cuándo se verificó esa fuente |
+| `created_by` | UUID → `users.id`, el admin que lo cargó |
 
 **Vacía hoy.** Ningún valor en [`docs/tax/tasas-iva.md`](tax/tasas-iva.md)
 está verificado todavía — CLAUDE.md prohíbe cargar un `[VERIFICAR]` de
-memoria.
+memoria. `source`/`verified_at`/`created_by` se agregaron junto con la
+pantalla de administración (`/admin/tasas`) — antes del 2026-10-04 el
+esquema no tenía dónde registrar de dónde salía una tasa, aunque la regla
+ya existía en CLAUDE.md.
 
 ### Formulario y relación con los resultados ([ADR-015](adr/015-definicion-del-formulario-desde-pdf.md))
 
 El formulario es el **destino** de los resultados, no una fuente de cálculo.
-Sin RLS (no es dato de contribuyente). **Vacías hoy** — no se ha importado
-ningún formulario; la pantalla de administración no existe
-(`NEXT_STEPS.md`).
+Sin RLS (no es dato de contribuyente). La pantalla de administración
+(`/admin/formularios`) existe desde el 2026-10-04 — **sigue vacía en
+producción** hasta que un admin suba y publique un formulario real.
 
 ```
 form_versions ──< form_fields

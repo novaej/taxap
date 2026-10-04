@@ -20,9 +20,17 @@ abrir a usuarios reales.
 
 ## Por construir
 
-- [ ] **Administración del formulario** (`ADMIN`, importación de PDF,
-      ADR-015). No se ha importado ningún formulario; `form_versions` y
-      `form_fields` están vacías.
+- [ ] **Extracción automática del PDF del formulario** (ADR-015, paso
+      "Subir PDF → extraer"). Las pantallas de administración
+      (`/admin/formularios`) existen desde el 2026-10-04, pero el PDF solo
+      se usa para calcular su `sha256` -- cada casillero se ingresa a mano
+      después de subirlo. No hay parser de la capa de texto todavía.
+- [ ] **Cálculo de `result_mappings`** (ADR-015, la cascada de 4 niveles:
+      versión anterior → coincidencia por atributos → IA → sin
+      casillero). Hoy un admin puede publicar un `form_version` con sus
+      `form_fields`, pero nada construye la relación resultado→casillero
+      todavía -- la pre-declaración sigue mostrando solo las claves del
+      dominio.
 - [ ] **Test de regresión de RLS.** Se ha verificado manualmente contra la
       base real varias veces, pero no queda como artefacto reproducible
       (`tests/rls/`, según `docs/guides/coding-guidelines.md`). Escribir uno
@@ -38,7 +46,10 @@ revisar el portal, o confirmar una fecha de vigencia:
 
 - [ ] **Completar `docs/tax/formato-archivos-sri.md`** con archivos que
       incluyan notas de crédito, notas de débito y comprobantes de retención.
-- [ ] **Verificar y cargar `tax_rates`** con fechas de vigencia y fuente.
+- [ ] **Verificar y cargar `tax_rates`.** La pantalla (`/admin/tasas`)
+      existe desde el 2026-10-04 y no deja guardar nada sin fuente y
+      fecha de verificación -- falta la verificación en sí
+      (`docs/tax/tasas-iva.md`: ninguna tasa confirmada todavía).
 - [ ] **Verificar con el portal** si 563/564/565 y los totales (409/419/429,
       509/519/529) los calcula el portal a partir de lo ingresado
       ([`docs/tax/formulario-104.md`](docs/tax/formulario-104.md) → *Pendiente

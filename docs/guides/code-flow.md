@@ -16,7 +16,7 @@ NextAuth v5, correo y contraseña (`src/lib/auth.ts`), sesión JWT,
   ningún contribuyente.
 - **Login** — `/[locale]/login`, `signIn()` de `next-auth/react` desde el
   cliente.
-- **Logout** — botón en el header de `(app)/layout.tsx`
+- **Logout** — botón al fondo de `AppSidebar`
   (`src/components/logout-button.tsx`), visible en toda la aplicación,
   `signOut()` de `next-auth/react`.
 - **Protección de rutas** — `src/proxy.ts` es una lista blanca, no una
@@ -25,19 +25,41 @@ NextAuth v5, correo y contraseña (`src/lib/auth.ts`), sesión JWT,
   por defecto sin que alguien tenga que acordarse de agregarla a una lista.
   Next.js 16 renombró la convención de `middleware.ts` a `proxy.ts`; con un
   directorio `src/`, además, solo reconoce el archivo dentro de `src/`.
+- **Rol** — `users.role` (`INDIVIDUAL | ACCOUNTANT | ADMIN`) viaja en el
+  JWT de sesión (`src/lib/auth.ts`, callbacks `jwt`/`session`) para que el
+  sidebar sepa si mostrar el enlace de administración sin una consulta
+  aparte. **Nunca se usa ese claim para autorizar una acción real** — un
+  JWT es de larga duración y podría seguir diciendo `ADMIN` después de
+  que alguien pierda el rol; `requireAdmin()` (`src/lib/session.ts`)
+  vuelve a consultar `users` directo antes de dejar pasar cualquier
+  Server Action de `/admin`.
 
 ## Navegación
 
-Dos layouts anidados, ninguno existía antes de esta sección:
+Dos layouts anidados bajo `(app)`, más un componente de barra lateral:
 
-- **`(app)/layout.tsx`** — envuelve todas las pantallas autenticadas.
-  Header fijo: nombre de la app (enlace a `/taxpayers`) + logout. Es el
-  único lugar de la aplicación con un menú persistente.
+- **`AppSidebar`** (`src/components/app-sidebar.tsx`, cliente) — montado
+  por `(app)/layout.tsx`, envuelve todas las pantallas autenticadas.
+  Siempre visible en escritorio (`md:block`); en móvil es un panel
+  deslizante con botón de hamburguesa (`useState` local, sin librería de
+  estado). Enlaces: "Mis contribuyentes" siempre, "Administración" solo
+  si `session.user.role === 'ADMIN'`. Resalta la sección activa comparando
+  `usePathname()`.
 - **`[taxpayerId]/layout.tsx`** — envuelve todo lo que cuelga de un
   contribuyente (`periodos`, `editar`). Franja secundaria: razón social +
   enlaces "Períodos" / "Editar contribuyente". Llama a `getTaxpayer()` una
   vez por request; cada página hija puede volver a consultarlo si necesita
   más que el nombre (no hay memoización entre layout y página todavía).
+
+**Modales en vez de formularios inline** — crear un período
+(`periodos-client.tsx`), una versión de formulario y agregar un casillero
+(`admin/formularios/...`), y cargar una tasa de IVA (`admin/tasas/...`)
+usan `src/components/ui/dialog.tsx` (envoltorio de `radix-ui`'s `Dialog`,
+primer uso en el proyecto). Se eligió modal sobre página completa para
+las acciones cortas de un formulario pequeño que no necesitan su propia
+URL; el alta/edición de contribuyente sigue siendo página completa porque
+tiene demasiados campos (actividades económicas de largo variable) para
+un modal.
 
 Dentro de un período, las cuatro pantallas (`ingesta`, `ventas`,
 `conciliacion`, la raíz de pre-declaración) comparten
@@ -258,13 +280,57 @@ después. Expuesta en la UI (`predeclaracion-client.tsx`) como el botón
 "Reabrir período", visible solo cuando `isFiled` — antes existía la
 función pero no había botón que la llamara.
 
+## 5. Administración
+
+**Rutas:** `/[locale]/(app)/admin/formularios`,
+`/[locale]/(app)/admin/formularios/[formVersionId]`,
+`/[locale]/(app)/admin/tasas`
+**Server Actions:** todas en `admin/actions.ts`, todas detrás de
+`requireAdmin()`, todas corriendo con `asAdmin()` — nunca `withUser()`,
+porque el admin no es dueño de ningún contribuyente ([ADR-015](../adr/015-definicion-del-formulario-desde-pdf.md)).
+
+El admin es del sistema: sube/publica el formulario y carga tasas, pero
+no ve datos de contribuyentes ni interviene en resultados — el disclaimer
+de `admin/layout.tsx` lo dice explícitamente en la pantalla.
+
+- **`createFormVersionDraft()`** sube un PDF, calcula su `sha256`
+  (`crypto`, igual que `uploadSourceFiles()` en ingesta) y crea un
+  `FormVersion` en `DRAFT`. **El PDF no se guarda en ningún punto** — ni
+  el archivo ni su contenido, solo el hash, tal como exige ADR-015.
+  **No hay extracción automática del texto todavía**
+  (`NEXT_STEPS.md`): el campo subido solo sirve para el hash de
+  trazabilidad.
+- **`addFormField()`** agrega un casillero (código, nombre oficial,
+  sección, tipo de columna) a mano, uno por uno, mientras la versión
+  esté en `DRAFT`. El propio esquema (`@@unique([formVersionId, code])`)
+  rechaza un código repetido — `addFormField` atrapa ese error de
+  Postgres y lo traduce a `DUPLICATE_CODE`, no hay revalidación de
+  duplicados en la aplicación porque la base ya lo garantiza.
+- **`publishFormVersion()`** exige al menos un casillero y fija
+  `status = PUBLISHED` + `publishedAt`. Una vez publicada, la versión no
+  se edita — la UI deja de mostrar los controles de agregar/quitar
+  casillero. Corregir algo es una versión nueva, no una edición
+  (mismo principio que los ADRs: nunca se reescribe, se reemplaza).
+- **`createTaxRate()`** exige `source` y `verifiedAt` en el propio
+  formulario — no se puede enviar sin ambos (CLAUDE.md → "Valores
+  normativos"). **No hay ninguna tasa cargada**: ninguna fila de
+  [`docs/tax/tasas-iva.md`](../tax/tasas-iva.md) está verificada todavía,
+  así que `/admin/tasas` existe pero su tabla sigue vacía en cualquier
+  entorno real.
+- **`result_mappings` no se calcula en ningún punto todavía** — la
+  cascada de 4 niveles de ADR-015 (versión anterior → atributos → IA →
+  sin casillero) no está implementada. Publicar un formulario deja sus
+  `form_fields` listos, pero nada los conecta todavía con las claves de
+  resultado del dominio (`NEXT_STEPS.md`).
+
 ## Pendiente de construir
 
 Ver [`NEXT_STEPS.md`](../../NEXT_STEPS.md) para la lista completa. Lo más
 relevante para entender el estado actual:
 
-- Administración del formulario (ADR-015) — sin esto, `result_mappings`
-  nunca se llena y la pre-declaración no muestra casilleros.
+- Extracción automática del PDF y cálculo de `result_mappings`
+  (ADR-015) — sin esto, la pre-declaración sigue sin mostrar casilleros
+  aunque ya exista un formulario publicado.
 - Catálogo compartido (nivel 2) e IA (nivel 3) de la cascada de
   clasificación — hoy `classifyPeriod()` los pasa como vacíos/null; solo
   los niveles 1 y 4 están activos.

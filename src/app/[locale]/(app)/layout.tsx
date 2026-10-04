@@ -1,21 +1,23 @@
 import { getTranslations } from 'next-intl/server';
-import { Link } from '@/i18n/navigation';
-import { LogoutButton } from '@/components/logout-button';
+import { auth } from '@/lib/auth';
+import { AppSidebar } from '@/components/app-sidebar';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const t = await getTranslations('Common');
+  const session = await auth();
+  const isAdmin = session?.user?.role === 'ADMIN';
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link href="/taxpayers" className="text-lg font-bold">
-            {t('appName')}
-          </Link>
-          <LogoutButton label={t('logout')} />
-        </div>
-      </header>
-      {children}
+    <div className="flex min-h-screen bg-background">
+      <AppSidebar
+        appName={t('appName')}
+        logoutLabel={t('logout')}
+        taxpayersLabel={t('navTaxpayers')}
+        adminLabel={t('navAdmin')}
+        isAdmin={isAdmin}
+        userEmail={session?.user?.email ?? ''}
+      />
+      <main className="min-w-0 flex-1">{children}</main>
     </div>
   );
 }

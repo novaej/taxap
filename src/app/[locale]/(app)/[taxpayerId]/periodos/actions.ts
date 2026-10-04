@@ -29,8 +29,12 @@ export interface CreatePeriodResult {
 export async function createPeriod(input: CreatePeriodInput): Promise<CreatePeriodResult> {
   const userId = await getCurrentUserId();
 
-  const periodStart = new Date(input.year, input.month - 1, 1);
-  const periodEnd = new Date(input.year, input.month, 0);
+  // UTC explícito: Prisma lee un @db.Date como medianoche UTC, así que
+  // construirlo en hora local desalinearía el mes mostrado en cualquier
+  // huso horario detrás de UTC (medianoche local de agosto cae en la
+  // noche de julio en UTC).
+  const periodStart = new Date(Date.UTC(input.year, input.month - 1, 1));
+  const periodEnd = new Date(Date.UTC(input.year, input.month, 0));
 
   try {
     const period = await withUser(userId, async (tx) => {

@@ -8,6 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -33,7 +41,7 @@ export function PeriodosClient({
   const common = useTranslations('Common');
 
   const [periods, setPeriods] = useState(initialPeriods);
-  const [showForm, setShowForm] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [month, setMonth] = useState(String(new Date().getMonth() + 1));
   const [error, setError] = useState<string | null>(null);
@@ -61,10 +69,14 @@ export function PeriodosClient({
     }
 
     setPeriods((prev) => [
-      { id: result.periodId!, periodStart: new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1).toISOString(), status: 'DRAFT' },
+      {
+        id: result.periodId!,
+        periodStart: new Date(Date.UTC(parseInt(year, 10), parseInt(month, 10) - 1, 1)).toISOString(),
+        status: 'DRAFT',
+      },
       ...prev,
     ]);
-    setShowForm(false);
+    setDialogOpen(false);
   }
 
   async function handleStatusChange(periodId: string, status: string) {
@@ -92,12 +104,14 @@ export function PeriodosClient({
   return (
     <div>
       <div className="mb-4 flex justify-end">
-        <Button onClick={() => setShowForm((v) => !v)}>{t('newButton')}</Button>
-      </div>
-
-      {showForm && (
-        <Card className="mb-4">
-          <CardContent className="flex flex-col gap-4 pt-6">
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>{t('newButton')}</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('newButton')}</DialogTitle>
+            </DialogHeader>
             <div className="flex gap-2">
               <Select value={year} onValueChange={setYear}>
                 <SelectTrigger className="w-32">
@@ -129,12 +143,14 @@ export function PeriodosClient({
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <Button onClick={handleCreate} disabled={isSubmitting}>
-              {t('createButton')}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+            <DialogFooter>
+              <Button onClick={handleCreate} disabled={isSubmitting}>
+                {t('createButton')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {periods.length === 0 ? (
         <p className="text-muted-foreground">{t('emptyState')}</p>
@@ -142,7 +158,7 @@ export function PeriodosClient({
         <div className="space-y-3">
           {periods.map((period) => {
             const date = new Date(period.periodStart);
-            const monthNum = date.getMonth() + 1;
+            const monthNum = date.getUTCMonth() + 1;
             return (
               <Card key={period.id}>
                 <CardHeader className="flex-row items-center justify-between gap-2">
@@ -151,7 +167,7 @@ export function PeriodosClient({
                     className="flex-1 hover:underline"
                   >
                     <CardTitle className="text-base">
-                      {t(`months.${monthNum}`)} {date.getFullYear()}
+                      {t(`months.${monthNum}`)} {date.getUTCFullYear()}
                     </CardTitle>
                   </Link>
                   <div className="flex items-center gap-2">

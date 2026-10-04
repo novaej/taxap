@@ -436,3 +436,63 @@ dejaban.
   único "← Volver" de cada una.
 - Namespace `PeriodNav` en `messages/es.json` con las cuatro etiquetas
   cortas de la barra.
+
+## [2026-10-04] Mes del período desalineado; menú lateral; módulo de administración
+
+### Corregido
+- **Un período creado como agosto se mostraba como julio.** `TaxPeriod.periodStart`
+  es `@db.Date`; Prisma lo lee de vuelta como medianoche UTC. Tanto la
+  pantalla de períodos (`periodos-client.tsx`) como la tabla de ventas
+  (`ventas-table.tsx`, para `issueDate`) leían esa fecha con los getters
+  de hora **local** (`getMonth`/`getFullYear`/`toLocaleDateString` sin
+  huso fijo) — en cualquier zona detrás de UTC (Ecuador, UTC-5), la
+  medianoche UTC del día 1 cae la noche anterior en hora local, y el mes
+  mostrado retrocedía uno. Corregido a `getUTCMonth`/`getUTCFullYear` y
+  `toLocaleDateString(locale, { timeZone: 'UTC' })`. `createPeriod()`
+  también pasó a construir `periodStart`/`periodEnd` con `Date.UTC(...)`
+  en vez de `new Date(year, month-1, 1)`, para no depender de la zona del
+  proceso que corre el servidor. Verificado en esta misma máquina
+  (`America/Guayaquil`, UTC-5, la condición real que causaba el error):
+  un período de agosto 2026 creado con la lógica corregida se renderiza
+  como "Agosto 2026" en la pantalla real.
+
+### Agregado
+- **Menú lateral persistente** (`src/components/app-sidebar.tsx`,
+  montado por `(app)/layout.tsx`): "Mis contribuyentes" siempre,
+  "Administración" solo para `role = ADMIN`. Siempre visible en
+  escritorio; panel deslizante con hamburguesa en móvil. Reemplaza el
+  header de una sola línea que ya existía — ese header en sí ya
+  renderizaba correctamente (se confirmó con una sesión real contra el
+  build existente); el ajuste es de prominencia e información, no de un
+  menú que faltara en el código.
+- **Modales** (`src/components/ui/dialog.tsx`, primer uso en el
+  proyecto, envoltorio de `radix-ui`): crear período, crear versión de
+  formulario, agregar casillero y cargar tasa de IVA pasaron de
+  formularios inline a modales.
+- **Módulo de administración** (`/admin/formularios`, `/admin/tasas`,
+  ADR-015): el admin sube un PDF (solo para su `sha256` — no hay
+  extracción automática del texto todavía, cada casillero se ingresa a
+  mano), publica versiones del formulario, y carga tasas de IVA que
+  exigen fuente y fecha de verificación antes de guardarse. `asAdmin()`
+  tenía meses sin usarse en ningún punto de `src/app` — esta es su
+  primera pantalla real.
+- `requireAdmin()` (`src/lib/session.ts`): vuelve a consultar `users.role`
+  contra la base en cada llamada, no confía en el claim del JWT de
+  sesión (que puede seguir diciendo `ADMIN` después de que alguien
+  pierda el rol, mientras el token no expire).
+- `scripts/seed-admin-user.ts` + `npm run seed:admin`: crea o promueve
+  una cuenta a `ADMIN`.
+- `TaxRate.source`/`verifiedAt`/`createdBy` (migración
+  `add_tax_rate_source`): el esquema no tenía dónde registrar de dónde
+  salía una tasa cargada, aunque CLAUDE.md ya exigía esa trazabilidad.
+  `/admin/tasas` no deja enviar el formulario sin ambos campos.
+
+### Sin cambio (deliberado)
+- **Ninguna tasa de IVA quedó cargada.** Ambas filas de
+  [`docs/tax/tasas-iva.md`](docs/tax/tasas-iva.md) siguen `[VERIFICAR]` —
+  CLAUDE.md prohíbe completar un `[VERIFICAR]` de memoria, así que
+  `/admin/tasas` se entrega vacía a propósito.
+- **`result_mappings` sigue sin calcularse.** La cascada de 4 niveles de
+  ADR-015 no está implementada; publicar un formulario deja sus
+  `form_fields` listos pero nada los conecta todavía con las claves de
+  resultado del dominio.

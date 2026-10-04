@@ -36,6 +36,7 @@ model User {
   formVersionsImported FormVersion[]
   aiUsage              AiUsage[]
   taxpayersCreated     Taxpayer[]
+  taxRatesLoaded       TaxRate[]
 
   @@map("users")
 }
@@ -400,6 +401,17 @@ model TaxRate {
   rate      Decimal     @db.Decimal(5, 4)
   validFrom DateTime    @map("valid_from") @db.Date
   validTo   DateTime?   @map("valid_to") @db.Date
+
+  // CLAUDE.md -> "Valores normativos": todo número tributario lleva fuente
+  // y fecha de verificación. El esquema no tenía dónde guardar ninguna de
+  // las dos -- lo que se cargaba (si algo se cargaba) no dejaba rastro de
+  // su origen.
+  source     String
+  verifiedAt DateTime @map("verified_at") @db.Date
+  createdBy  String   @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  creator User @relation(fields: [createdBy], references: [id])
 
   @@id([tax, validFrom])
   @@map("tax_rates")

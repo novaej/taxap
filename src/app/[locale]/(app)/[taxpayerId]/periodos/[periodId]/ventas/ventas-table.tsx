@@ -150,7 +150,9 @@ export function VentasTable({
                     />
                   </TableCell>
                   <TableCell>{sale.series}</TableCell>
-                  <TableCell>{new Date(sale.issueDate).toLocaleDateString('es-EC')}</TableCell>
+                  <TableCell>
+                    {new Date(sale.issueDate).toLocaleDateString('es-EC', { timeZone: 'UTC' })}
+                  </TableCell>
                   <TableCell>{sale.total}</TableCell>
                   <TableCell>
                     <Select

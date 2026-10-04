@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import { Building2 } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { getTaxpayer } from './actions';
 
@@ -15,18 +16,20 @@ export default async function TaxpayerLayout({
 
   return (
     <div>
-      <div className="border-b bg-muted/30">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-2 text-sm">
-          <span className="font-medium">{taxpayer.businessName}</span>
+      <div className="border-b bg-muted">
+        <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-3">
+          <Building2 className="size-4 text-muted-foreground" />
+          <span className="font-semibold">{taxpayer.businessName}</span>
+          <span className="text-muted-foreground">·</span>
           <Link
             href={`/${taxpayerId}/periodos`}
-            className="text-muted-foreground hover:text-foreground hover:underline"
+            className="text-sm text-muted-foreground hover:text-foreground hover:underline"
           >
             {t('navPeriods')}
           </Link>
           <Link
             href={`/${taxpayerId}/editar`}
-            className="text-muted-foreground hover:text-foreground hover:underline"
+            className="text-sm text-muted-foreground hover:text-foreground hover:underline"
           >
             {t('navEdit')}
           </Link>

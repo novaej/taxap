@@ -79,6 +79,24 @@ clasificación no se puede limpiar después, ni a mano. Para pruebas
 descartables, evitar transiciones de estado sobre contribuyentes/períodos que
 no se puedan dejar así para siempre.
 
+## Fechas
+
+**Una fecha guardada como `@db.Date` se muestra un día (o un mes) antes
+de lo esperado.** Prisma lee un `@db.Date` de vuelta como medianoche
+**UTC**, nunca medianoche local. En cualquier huso detrás de UTC (Ecuador,
+UTC-5), formatear esa fecha con los getters de hora local
+(`getMonth()`, `getFullYear()`, `toLocaleDateString()` sin `timeZone`)
+retrocede un día — y si el día es 1, retrocede un mes entero. Pasó de
+verdad con `tax_periods.period_start` (`periodos-client.tsx`) e
+`invoices_issued.issue_date` (`ventas-table.tsx`): un período de agosto
+se mostraba como julio. La regla: cualquier valor leído de una columna
+`@db.Date` se muestra con los getters **UTC**
+(`getUTCMonth`/`getUTCFullYear`/`getUTCDate`) o con
+`toLocaleDateString(locale, { timeZone: 'UTC' })` — nunca con los
+getters locales. Al construir uno de estos valores para guardarlo,
+`Date.UTC(year, month, day)`, no `new Date(year, month, day)` (que
+usa la zona del proceso que corre el código, no la del usuario).
+
 ## Rutas y sesión
 
 **Una ruta protegida no redirige a `/login` sin sesión.** Revisar que el

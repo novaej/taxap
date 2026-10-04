@@ -142,6 +142,27 @@ Para el detalle de qué hace cada Server Action y por qué, ver
 [`docs/guides/code-flow.md`](docs/guides/code-flow.md). Para errores
 durante este recorrido, ver [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
+## 6. Administración (opcional)
+
+Para subir el formulario 104 o cargar una tasa de IVA hace falta una
+cuenta `ADMIN` — el registro normal (paso 1) siempre crea cuentas
+`INDIVIDUAL`.
+
+```bash
+npm run seed:admin -- correo@ejemplo.com "contraseña-segura"
+```
+
+Si `correo@ejemplo.com` ya existe (por ejemplo, la cuenta que usaste en
+el paso 1), el comando la promueve a `ADMIN` sin pedir contraseña. Inicia
+sesión con esa cuenta y el menú lateral va a mostrar "Administración".
+
+En `/admin/formularios`, "Nueva versión" sube un PDF -- solo para
+calcular su huella, no se guarda -- y crea un borrador. Ahí se agregan
+los casilleros a mano (no hay extracción automática del PDF todavía) y
+se publica. En `/admin/tasas`, cargar una tasa exige su fuente y fecha de
+verificación; no hay ninguna cargada por defecto porque ninguna está
+verificada todavía (`docs/tax/tasas-iva.md`).
+
 ## Comandos de base de datos
 
 | Comando | Qué hace |
@@ -149,6 +170,7 @@ durante este recorrido, ver [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 | `npm run db:migrate` | Aplica migraciones pendientes (`prisma migrate dev`) |
 | `npm run db:seed` | Siembra los planes (`prisma/seed.ts`) |
 | `npm run db:reset` | Borra todo en `public` (tablas, tipos, funciones) y vuelve a migrar + sembrar. Bloqueado si `NODE_ENV=production`. |
+| `npm run seed:admin -- <correo> [contraseña]` | Crea o promueve una cuenta a `ADMIN` |
 
 Acceso directo a la base, si hace falta:
 
