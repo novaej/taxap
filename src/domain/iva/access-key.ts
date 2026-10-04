@@ -1,19 +1,20 @@
 /**
  * Access Key (Clave de Acceso) validation and decomposition.
- * 49-digit identifier: date + type + RUC + series + number + verificador
+ * 49 digits. Verified against real access keys in
+ * docs/tax/formato-archivos-sri.md -> "La clave de acceso" (2026-09-20).
  * ADR-009: Clave de acceso como clave de deduplicación e integridad
  *
- * Format: DDMMYYYYXXTTTSSEEEEEEEEVCVD
- * where:
- *  DD = day (01-31)
- *  MM = month (01-12)
- *  YYYY = year (2000-9999)
- *  XX = document type code
- *  TTT = IVA settlement type (3 digits)
- *  SS = establishment (2 digits)
- *  EEEEEEEE = emission sequence (8 digits)
- *  V = check digit (mod 11, weighted sum)
- *  CVD = empty (always 000)
+ * Position | Length | Field
+ *    0–7   |   8    | Fecha de emisión DDMMAAAA
+ *    8–9   |   2    | Tipo de comprobante
+ *   10–22  |   13   | RUC del emisor
+ *    23    |   1    | Ambiente (1 pruebas, 2 producción)
+ *   24–26  |   3    | Establecimiento
+ *   27–29  |   3    | Punto de emisión
+ *   30–38  |   9    | Secuencial
+ *   39–46  |   8    | Código numérico
+ *    47    |   1    | Tipo de emisión
+ *    48    |   1    | Dígito verificador
  */
 
 import { AccessKeyInvalidError } from '../types';
@@ -24,11 +25,14 @@ export interface DecomposedAccessKey {
   year: number;
   emissionDate: Date;
   documentType: string;
-  ivaSettlementType: string; // Usually "001"
+  rucEmisor: string;
+  environment: string;
   establishment: string;
+  emissionPoint: string;
   emissionSequence: string;
+  numericCode: string;
+  emissionType: string;
   checkDigit: number;
-  emptyDigits: string;
 }
 
 /**
@@ -37,8 +41,7 @@ export interface DecomposedAccessKey {
  * 1. Length is exactly 49
  * 2. All characters are digits
  * 3. Date is valid
- * 4. Check digit matches (mod 11)
- * 5. Empty digits are "000"
+ * 4. Check digit matches (mod 11 over the first 48 digits)
  */
 export function parseAccessKey(accessKey: string): DecomposedAccessKey {
   // 1. Length
@@ -62,11 +65,14 @@ export function parseAccessKey(accessKey: string): DecomposedAccessKey {
   const month = parseInt(accessKey.substring(2, 4), 10);
   const year = parseInt(accessKey.substring(4, 8), 10);
   const documentType = accessKey.substring(8, 10);
-  const ivaSettlementType = accessKey.substring(10, 13);
-  const establishment = accessKey.substring(13, 15);
-  const emissionSequence = accessKey.substring(15, 23);
-  const checkDigit = parseInt(accessKey.substring(23, 24), 10);
-  const emptyDigits = accessKey.substring(24, 27);
+  const rucEmisor = accessKey.substring(10, 23);
+  const environment = accessKey.substring(23, 24);
+  const establishment = accessKey.substring(24, 27);
+  const emissionPoint = accessKey.substring(27, 30);
+  const emissionSequence = accessKey.substring(30, 39);
+  const numericCode = accessKey.substring(39, 47);
+  const emissionType = accessKey.substring(47, 48);
+  const checkDigit = parseInt(accessKey.substring(48, 49), 10);
 
   // 3. Validate date
   if (month < 1 || month > 12) {
@@ -95,20 +101,12 @@ export function parseAccessKey(accessKey: string): DecomposedAccessKey {
     );
   }
 
-  // 4. Validate check digit
-  const calculatedCheckDigit = calculateCheckDigit(accessKey.substring(0, 23));
+  // 4. Validate check digit (mod 11 over the first 48 digits)
+  const calculatedCheckDigit = calculateCheckDigit(accessKey.substring(0, 48));
   if (calculatedCheckDigit !== checkDigit) {
     throw new AccessKeyInvalidError(
       accessKey,
       `Check digit mismatch: expected ${calculatedCheckDigit}, got ${checkDigit}`
-    );
-  }
-
-  // 5. Empty digits must be "000"
-  if (emptyDigits !== '000') {
-    throw new AccessKeyInvalidError(
-      accessKey,
-      `Empty digits must be "000", got "${emptyDigits}"`
     );
   }
 
@@ -118,30 +116,37 @@ export function parseAccessKey(accessKey: string): DecomposedAccessKey {
     year,
     emissionDate,
     documentType,
-    ivaSettlementType,
+    rucEmisor,
+    environment,
     establishment,
+    emissionPoint,
     emissionSequence,
+    numericCode,
+    emissionType,
     checkDigit,
-    emptyDigits,
   };
 }
 
 /**
  * Calculate the check digit using modulo 11 with weights.
- * Weights cycle: 7, 6, 5, 4, 3, 2, 7, 6, 5, 4, 3, 2, ...
+ * Weights cycle left to right: 7, 6, 5, 4, 3, 2, 7, 6, 5, 4, 3, 2, ...
  * Check digit = 11 - (sum mod 11)
- * If result is 11, check digit is 0; if 10, it's 1 (according to SRI spec).
+ * If result is 11, check digit is 0; if 10, it's 1.
+ *
+ * Verified against both real access keys in
+ * docs/tax/formato-archivos-sri.md (check digits 4 and 5, both correct
+ * with this weighting over the first 48 digits).
  */
-export function calculateCheckDigit(first23: string): number {
-  if (first23.length !== 23) {
-    throw new Error('Check digit calculation requires exactly 23 digits');
+export function calculateCheckDigit(first48: string): number {
+  if (first48.length !== 48) {
+    throw new Error('Check digit calculation requires exactly 48 digits');
   }
 
   const weights = [7, 6, 5, 4, 3, 2];
   let sum = 0;
 
-  for (let i = 0; i < 23; i++) {
-    const digit = parseInt(first23[i], 10);
+  for (let i = 0; i < 48; i++) {
+    const digit = parseInt(first48[i], 10);
     const weight = weights[i % 6];
     sum += digit * weight;
   }
@@ -156,16 +161,17 @@ export function calculateCheckDigit(first23: string): number {
 }
 
 /**
- * Verify that an access key is consistent with metadata.
- * Used during ingestion to validate data integrity.
+ * Verify that an access key is consistent with metadata from the file row.
  *
- * For received invoices: emitterRuc should match the RUC in the clave
- * For issued invoices: the RUC inside the clave should be the taxpayer's
+ * For received invoices: `ruc` is the supplier's RUC (RUC_EMISOR) -- the
+ * access key's embedded RUC belongs to whoever issued the invoice.
+ * For issued invoices: `ruc` is the taxpayer's own RUC -- the access key's
+ * embedded RUC is the taxpayer's, because they're the issuer.
  */
 export function verifyAccessKeyConsistency(
   accessKey: string,
-  ruc: string, // RUC to verify against (emitter for received, taxpayer for issued)
-  series: string, // "NNN-NNN-NNNNNNNNN"
+  ruc: string,
+  series: string, // "EEE-PPP-SSSSSSSSS"
   emissionDate: Date
 ): void {
   const parsed = parseAccessKey(accessKey);
@@ -179,7 +185,18 @@ export function verifyAccessKeyConsistency(
     );
   }
 
-  // Verify serie matches: extract establishment and sequence from serie
+  // RUC embedded in the access key must match
+  if (!ruc || ruc.length === 0) {
+    throw new AccessKeyInvalidError(accessKey, 'RUC cannot be empty');
+  }
+  if (parsed.rucEmisor !== ruc.padStart(13, '0')) {
+    throw new AccessKeyInvalidError(
+      accessKey,
+      `RUC mismatch: access key says ${parsed.rucEmisor}, expected ${ruc}`
+    );
+  }
+
+  // Serie: "EEE-PPP-SSSSSSSSS" -> establecimiento + punto de emisión + secuencial
   const serieParts = series.split('-');
   if (serieParts.length !== 3) {
     throw new AccessKeyInvalidError(
@@ -188,33 +205,26 @@ export function verifyAccessKeyConsistency(
     );
   }
 
-  const serieEstablishment = serieParts[1];
-  const serieSequence = serieParts[2];
+  const [serieEstablishment, serieEmissionPoint, serieSequence] = serieParts;
 
-  if (parsed.establishment !== serieEstablishment.padStart(2, '0')) {
+  if (parsed.establishment !== serieEstablishment.padStart(3, '0')) {
     throw new AccessKeyInvalidError(
       accessKey,
       `Establishment mismatch: access key says ${parsed.establishment}, serie says ${serieEstablishment}`
     );
   }
 
-  if (parsed.emissionSequence !== serieSequence.padStart(8, '0')) {
+  if (parsed.emissionPoint !== serieEmissionPoint.padStart(3, '0')) {
     throw new AccessKeyInvalidError(
       accessKey,
-      `Emission sequence mismatch: access key says ${parsed.emissionSequence}, serie says ${serieSequence}`
+      `Emission point mismatch: access key says ${parsed.emissionPoint}, serie says ${serieEmissionPoint}`
     );
   }
 
-  // RUC verification: extract the 10-digit RUC from positions 15-24 of the access key
-  // In the SRI format, positions 10-19 represent the RUC (after removing hyphens from "NNN-NNN-NNNNNNNNN" etc.)
-  // Actually, the RUC is embedded in positions 15-24 of the first 23 digits
-  // For now, we accept the RUC as-is since the full structure isn't fully specified in the format.
-  // This will be verified during actual implementation with real SRI files.
-  // Placeholder: just check it's not empty
-  if (!ruc || ruc.length === 0) {
+  if (parsed.emissionSequence !== serieSequence.padStart(9, '0')) {
     throw new AccessKeyInvalidError(
       accessKey,
-      'RUC cannot be empty'
+      `Emission sequence mismatch: access key says ${parsed.emissionSequence}, serie says ${serieSequence}`
     );
   }
 }

@@ -131,8 +131,16 @@ export class IngestionService {
       }
     }
 
-    // 3. Belongingness to taxpayer
-    if (row.IDENTIFICACION_RECEPTOR !== taxpayerRuc) {
+    // 3. Belongingness to taxpayer. IDENTIFICACION_RECEPTOR is 10 digits
+    // (the cédula) when the receiver is a persona natural, or 13 (the full
+    // RUC) otherwise -- docs/tax/formato-archivos-sri.md. A 13-digit RUC is
+    // the 10-digit cédula plus a 3-digit suffix (usually "001"), so a
+    // 10-digit receptor matches whenever it's that taxpayer's cédula.
+    const receptorMatches =
+      row.IDENTIFICACION_RECEPTOR === taxpayerRuc ||
+      (row.IDENTIFICACION_RECEPTOR.length === 10 &&
+        taxpayerRuc.startsWith(row.IDENTIFICACION_RECEPTOR));
+    if (!receptorMatches) {
       errors.push({
         field: 'IDENTIFICACION_RECEPTOR',
         message: `Receiver RUC ${row.IDENTIFICACION_RECEPTOR} does not match taxpayer ${taxpayerRuc}`,
@@ -179,6 +187,7 @@ export class IngestionService {
    */
   validateIssuedRow(
     row: IssuedInvoiceRow,
+    taxpayerRuc: string,
     periodStart: Date,
     periodEnd: Date,
     existingAccessKeys: Set<string>
@@ -206,12 +215,13 @@ export class IngestionService {
       }
     }
 
-    // 2. Access key consistency
+    // 2. Access key consistency -- the embedded RUC is the taxpayer's own,
+    // since for issued invoices the taxpayer is the one who issued them.
     if (errors.length === 0) {
       try {
         verifyAccessKeyConsistency(
           accessKey,
-          '', // RUC is embedded in the access key for issued invoices
+          taxpayerRuc,
           row.SERIE_COMPROBANTE,
           this.parseDate(row.FECHA_EMISION)
         );

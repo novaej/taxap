@@ -266,3 +266,49 @@ cargan `.env.local` ellos mismos con `dotenv`.
   hereda el entorno ya correcto del proceso padre.
 - `GETTING_STARTED.md`: quitados los tres pasos de
   `export $(cat .env.local | xargs)` — ya no hacen falta.
+
+## [2026-10-04] La clave de acceso se parseaba con un layout inventado
+
+Reportado por el usuario al cargar un archivo real de recibidas: todas las
+filas fallaban con "Check digit mismatch", "Empty digits must be 000" y
+"Receiver RUC ... does not match taxpayer [UUID]".
+
+### Corregido
+- **`access-key.ts` nunca se verificó contra el formato real.** Mismo tipo
+  de error que ya se corrigió en `file-parser.ts` el 2026-09-30 — esta vez
+  en el archivo que faltaba revisar en esa misma pasada. El layout de
+  `parseAccessKey` no coincidía con la tabla verificada de
+  `docs/tax/formato-archivos-sri.md` (que ADR-009 sí documentaba bien: el
+  código nunca se alineó con ninguno de los dos):
+  - El dígito verificador real está en la posición 48 (el último), no en
+    la 23. La posición 23 es el dígito de "ambiente" (1 pruebas, 2
+    producción) — por eso todos los errores decían "expected X, got 2": el
+    código leía el ambiente y lo trataba como dígito verificador.
+  - No existe un campo de "dígitos vacíos que deben ser 000". Esa posición
+    (24-26) es en realidad el inicio del establecimiento dentro de la
+    serie.
+  - El RUC del emisor (13 dígitos, posición 10-22) nunca se extraía ni se
+    comparaba contra nada.
+  - El cálculo del dígito verificador (mod 11, pesos `7,6,5,4,3,2`) estaba
+    bien, pero se aplicaba sobre los primeros 23 dígitos en vez de los
+    primeros 48.
+  Reescrito y verificado contra las dos claves reales de
+  `formato-archivos-sri.md` (dígitos verificadores 4 y 5, ambos correctos
+  con el layout corregido).
+- **La Server Action de ingesta pasaba el UUID del contribuyente donde
+  `ingestion-service.ts` esperaba su RUC.** Por eso el segundo error en
+  cada fila: "Receiver RUC 1715824775 does not match taxpayer
+  01a10783-...". Corregido para buscar `taxpayer.ruc` antes de validar.
+- **`validateIssuedRow` no tenía forma de recibir el RUC del contribuyente**
+  — pasaba `''` a `verifyAccessKeyConsistency`, que con la función ya
+  corregida (antes era un placeholder que solo revisaba que no estuviera
+  vacío) habría rechazado toda fila de ventas con "RUC cannot be empty".
+  No se había manifestado todavía porque el usuario solo había probado
+  recibidas. Agregado el parámetro.
+- **La verificación de pertenencia no distinguía cédula (10 dígitos) de RUC
+  completo (13 dígitos).** `IDENTIFICACION_RECEPTOR` trae la cédula cuando
+  el receptor es persona natural (documentado en
+  `formato-archivos-sri.md`), y el RUC completo es la cédula más un sufijo
+  de 3 dígitos. Una comparación directa (`!==`) habría seguido fallando
+  para el mismo archivo del usuario incluso después de arreglar el bug del
+  UUID. Ahora acepta ambos casos.

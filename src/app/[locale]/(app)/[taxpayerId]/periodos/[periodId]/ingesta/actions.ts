@@ -48,6 +48,9 @@ export async function uploadSourceFiles(
     const taxPeriod = await tx.taxPeriod.findFirstOrThrow({
       where: { id: periodId, taxpayerId },
     });
+    const taxpayer = await tx.taxpayer.findUniqueOrThrow({
+      where: { id: taxpayerId },
+    });
 
     const existing = await tx.invoiceReceived.findMany({
       where: { taxpayerId },
@@ -60,13 +63,14 @@ export async function uploadSourceFiles(
         parseResult.fileType === 'RECIBIDAS'
           ? ingestionService.validateReceivedRow(
               row as ReceivedInvoiceRow,
-              taxpayerId,
+              taxpayer.ruc,
               taxPeriod.periodStart,
               taxPeriod.periodEnd,
               existingAccessKeys
             )
           : ingestionService.validateIssuedRow(
               row as IssuedInvoiceRow,
+              taxpayer.ruc,
               taxPeriod.periodStart,
               taxPeriod.periodEnd,
               existingAccessKeys
