@@ -5,12 +5,16 @@
  * manual mientras tanto.
  *
  * Uso:
- *   npx tsx scripts/seed-test-taxpayer.ts correo@ejemplo.com
+ *   npm run seed:test-taxpayer -- correo@ejemplo.com
  *
  * Imprime las URLs de las cuatro pantallas al terminar.
+ *
+ * No carga .env.local aquí mismo -- ver la nota en prisma/seed.ts sobre por
+ * qué eso no funciona cuando el archivo importa `../src/lib/db`. El script
+ * de package.json precarga dotenv con `--import dotenv/config`.
  */
 
-import { asAdmin, withUser, prisma } from '../src/lib/db';
+import { withUser, prisma } from '../src/lib/db';
 
 async function main() {
   const email = process.argv[2];

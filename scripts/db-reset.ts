@@ -12,6 +12,9 @@
  * role, but the app role does own the tables it created via migrations.
  */
 
+import { config } from 'dotenv';
+config({ path: '.env.local' });
+
 import { Pool } from 'pg';
 import { execSync } from 'child_process';
 
@@ -21,8 +24,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 if (!process.env.DATABASE_URL) {
-  console.error('DATABASE_URL is not set. Export it from .env.local first:');
-  console.error('  export $(cat .env.local | xargs)');
+  console.error('DATABASE_URL is not set in .env.local.');
   process.exit(1);
 }
 

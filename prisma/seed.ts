@@ -5,6 +5,15 @@
  * fuente y fecha de verificación (CLAUDE.md -> "Valores normativos") y no se
  * cargan de memoria. Ver docs/tax/tasas-iva.md: ninguna tasa está verificada
  * todavía, así que no hay nada que sembrar ahí.
+ *
+ * No carga .env.local aquí mismo: `../src/lib/db` construye su Pool al
+ * importarse, y esbuild (vía tsx) sube todos los `require` generados por
+ * `import` al tope del archivo compilado, por encima de cualquier otra
+ * instrucción -- así que un `import dotenv` + `config()` escrito antes de
+ * este `import` de todas formas corre *después* de que `db.ts` ya leyó
+ * `process.env.DATABASE_URL`. El `npm run db:seed` de package.json precarga
+ * dotenv con `--import dotenv/config`, que sí corre antes de que se cargue
+ * ningún módulo del proyecto.
  */
 
 import { prisma } from '../src/lib/db';

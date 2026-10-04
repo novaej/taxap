@@ -86,7 +86,6 @@ revisión. Nada se rompe. Ver [ADR-007](docs/adr/007-modo-sin-ia-y-catalogo-comp
 
 ```bash
 npm install
-export $(cat .env.local | xargs)
 npm run db:migrate
 npm run db:seed
 ```
@@ -139,7 +138,6 @@ PGPASSWORD="taxap_dev_password" psql -h localhost -U taxap -d taxap_dev
 docker exec postgres18 psql -U postgres -d taxap_dev
 
 # Prisma Studio
-export $(cat .env.local | xargs)
 npx prisma studio
 ```
 
@@ -186,7 +184,6 @@ Para el formato esperado, ver
 ## Resetear desde cero
 
 ```bash
-export $(cat .env.local | xargs)
 npm run db:reset
 ```
 

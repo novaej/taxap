@@ -225,3 +225,44 @@ hace hoy.
 - `NEXT_STEPS.md`: quitados todos los ítems ya resueltos (quedan en el
   historial de este changelog, no duplicados ahí). Solo quedan decisiones
   abiertas, trabajo por construir y verificación normativa pendiente.
+
+## [2026-10-03] `.env.local` se carga sola; ya no hace falta exportarla a mano
+
+`npx prisma migrate dev`, `npm run db:seed`, `npm run db:reset` y
+`npm run seed:test-taxpayer` pedían `export $(cat .env.local | xargs)` antes
+de correr, porque ninguno pasa por el auto-load de `.env.local` que sí tiene
+`next dev`. Comparado contra el patrón de `comprobify-web` (que no necesita
+este paso): su `prisma.config.ts` y sus scripts (`db-reset.js`, `seed.js`)
+cargan `.env.local` ellos mismos con `dotenv`.
+
+### Agregado
+- `dotenv` como dependencia de desarrollo.
+- `prisma.config.ts` ahora llama a `dotenv`'s `config({ path: '.env.local' })`
+  antes de `defineConfig(...)` — funciona para todo lo que pasa por la CLI
+  de Prisma (`migrate`, `studio`, etc.), sin tocar los scripts de
+  `package.json`.
+
+### Corregido
+- **El mismo patrón no funciona para `prisma/seed.ts` ni
+  `scripts/seed-test-taxpayer.ts`.** Ambos importan `src/lib/db.ts`, que
+  construye su `Pool` de Postgres al cargarse. esbuild (el compilador detrás
+  de `tsx`) sube todos los `require` generados por `import` al tope del
+  archivo compilado, sin importar dónde aparecían los `import` en el código
+  fuente — así que un `import { config } from 'dotenv'; config(...)`
+  escrito *antes* del `import` de `db.ts` de todas formas se ejecuta
+  *después*, porque ambos `require` ya subieron al tope. `db.ts` terminaba
+  leyendo `process.env.DATABASE_URL` como `undefined`, y Postgres rechazaba
+  la conexión con un error de autenticación SASL que no menciona variables
+  de entorno en ningún lado — habría sido muy fácil darlo por una falla de
+  credenciales. Diagnosticado comparando una conexión directa con `pg` (que
+  sí funcionaba) contra la misma conexión vía el adaptador de Prisma
+  importado desde un archivo separado (que no).
+
+  Arreglado sembrando `dotenv` por fuera del grafo de módulos, con
+  `tsx --import dotenv/config` y `DOTENV_CONFIG_PATH=.env.local` en los
+  scripts de `package.json`, en vez de un `import` dentro del propio
+  archivo. `scripts/db-reset.ts` no necesitaba el cambio: no importa
+  `db.ts` directamente, y el `prisma/seed.ts` que ejecuta como proceso hijo
+  hereda el entorno ya correcto del proceso padre.
+- `GETTING_STARTED.md`: quitados los tres pasos de
+  `export $(cat .env.local | xargs)` — ya no hacen falta.
