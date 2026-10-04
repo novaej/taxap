@@ -11,9 +11,9 @@ function stepHref(taxpayerId: string, periodId: string, step: PeriodStep) {
 }
 
 /**
- * Barra de pasos del período: navegación completa hacia adelante y atrás
- * entre las cuatro pantallas (antes solo existía un enlace "← Volver" a la
- * raíz, y la raíz misma no tenía ningún enlace hacia las otras tres).
+ * The period's step bar: full back-and-forth navigation across the four
+ * screens (before this, there was only a "← Back" link to the root, and
+ * the root itself had no link to any of the other three).
  */
 export function PeriodStepNav({
   taxpayerId,

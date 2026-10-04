@@ -2,30 +2,29 @@ import { auth } from './auth';
 import { prisma } from './db';
 
 /**
- * El id del usuario autenticado, para pasar a withUser()/asAdmin().
- * Lanza si no hay sesión -- las Server Actions de cada pantalla no deben
- * simular un usuario ni degradar en silencio a un acceso sin filtrar.
+ * The authenticated user's id, to pass to withUser()/asAdmin().
+ * Throws if there's no session -- a screen's Server Actions must never
+ * simulate a user or silently degrade to an unfiltered access.
  */
 export async function getCurrentUserId(): Promise<string> {
   const session = await auth();
   if (!session?.user?.id) {
-    throw new Error('No autenticado');
+    throw new Error('Not authenticated');
   }
   return session.user.id;
 }
 
 /**
- * Para rutas de administración. Vuelve a consultar el rol contra `users`
- * en vez de confiar en el claim del JWT de sesión -- un JWT de larga
- * duración puede seguir diciendo ADMIN después de que alguien le quite el
- * rol a ese usuario; esta comprobación no debe esperar a que el token
- * expire o se refresque.
+ * For admin routes. Re-checks the role against `users` instead of
+ * trusting the session JWT's claim -- a long-lived JWT can keep saying
+ * ADMIN after someone's role is taken away; this check must not wait for
+ * the token to expire or refresh.
  */
 export async function requireAdmin(): Promise<string> {
   const userId = await getCurrentUserId();
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   if (user.role !== 'ADMIN') {
-    throw new Error('No autorizado: se requiere rol ADMIN');
+    throw new Error('Not authorized: ADMIN role required');
   }
   return userId;
 }

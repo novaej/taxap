@@ -1,82 +1,87 @@
-# ADR-006: Reglas por proveedor y actividad económica
+# ADR-006: Rules by supplier and economic activity
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-El nivel 1 de la cascada ([ADR-005](005-clasificacion-en-cascada.md)) recuerda cómo
-se clasificó antes a un proveedor. Queda definir cuál es la clave de esa memoria.
+Level 1 of the cascade ([ADR-005](005-clasificacion-en-cascada.md))
+remembers how a supplier was classified before. What's left to define is
+the key for that memory.
 
-Los archivos del SRI traen, como señal utilizable: el RUC y la razón social del
-emisor, el tipo de comprobante y los montos. **No traen concepto ni descripción**
+SRI files carry, as usable signal: the issuer's RUC and legal name, the
+voucher type, and the amounts. **They carry no concept or description**
 ([ADR-008](008-solo-totales-sin-detalle-de-lineas.md)).
 
-Pero el proveedor solo no alcanza. El mismo proveedor significa cosas distintas
-según quién compra:
+But the supplier alone isn't enough. The same supplier means different
+things depending on who's buying:
 
-| Proveedor | Compañía de taxis | Estudio jurídico | Restaurante |
+| Supplier | Taxi company | Law firm | Restaurant |
 |---|---|---|---|
-| Distribuidora de combustible | Gasto operacional central | Probablemente mixto | Marginal |
-| Cadena de supermercados | Difícilmente deducible | Difícilmente deducible | Insumo deducible |
+| Fuel distributor | Core operating expense | Likely mixed | Marginal |
+| Supermarket chain | Hardly deductible | Hardly deductible | Deductible input |
 
-Lo que cambia entre columnas es la **actividad económica del contribuyente**. Y esa
-actividad no es fija: un contribuyente puede agregar una actividad nueva al RUC, y
-entonces compras que antes eran claramente no deducibles pasan a ser gasto
-operacional del negocio nuevo.
+What changes between columns is the **taxpayer's economic activity**. And
+that activity isn't fixed: a taxpayer can add a new activity to their RUC,
+and then purchases that were clearly non-deductible before become an
+operating expense of the new business line.
 
-## Decisión
+## Decision
 
-**La clave de una regla es `(contribuyente, proveedor, huella de actividad económica)`.**
+**The key for a rule is `(taxpayer, supplier, economic activity
+fingerprint)`.**
 
 ```
 supplier_rules
 ├── taxpayer_id
 ├── supplier_ruc
-├── activity_fingerprint   ← hash del conjunto de actividades al crearse la regla
+├── activity_fingerprint   ← hash of the set of activities when the rule was created
 ├── iva_category
 ├── source, created_by, created_at, revoked_at
 ```
 
-Cuando cambian las actividades económicas del contribuyente, `activity_fingerprint`
-se recalcula. Las reglas emitidas bajo la huella anterior **no se borran ni se
-aplican en silencio**: quedan marcadas como pendientes de revalidación y sus
-comprobantes caen a la bandeja. El usuario las reconfirma de forma masiva y la
-regla se reemite con la huella nueva.
+When the taxpayer's economic activities change, `activity_fingerprint` is
+recalculated. Rules issued under the previous fingerprint are **neither
+deleted nor silently applied**: they're flagged as pending revalidation and
+their vouchers drop into the review queue. The user reconfirms them in bulk
+and the rule is reissued under the new fingerprint.
 
-Las reglas nunca se eliminan físicamente; se revocan con `revoked_at`, porque la
-bitácora ([ADR-013](013-bitacora-inmutable-y-bloqueo-de-periodo.md)) referencia la
-regla que aplicó en su momento.
+Rules are never physically deleted; they're revoked with `revoked_at`,
+because the audit log ([ADR-013](013-bitacora-inmutable-y-bloqueo-de-periodo.md))
+references whichever rule applied at the time.
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- Las reglas reflejan el criterio de quien declara para ese contribuyente
-  concreto, no un criterio genérico impuesto.
-- Un cambio de actividad económica no corrompe silenciosamente períodos futuros.
-- El historial de reglas revocadas explica por qué un período viejo se calculó
-  como se calculó.
+### Positive
+- Rules reflect the judgment of the person filing for that specific
+  taxpayer, not a generic criterion imposed on them.
+- A change in economic activity doesn't silently corrupt future periods.
+- The history of revoked rules explains why an old period was calculated
+  the way it was.
 
-### Negativas
-- Un cambio de actividad económica devuelve mucho trabajo a la bandeja de golpe.
-  Se mitiga con revalidación masiva, pero es fricción real y visible.
-- La huella es un hash: si cambia el orden o el formato de las actividades sin que
-  cambie su contenido, se invalidan reglas sin motivo. **La huella debe calcularse
-  sobre los códigos normalizados y ordenados**, nunca sobre el texto crudo.
+### Negative
+- A change in economic activity dumps a lot of work back into the queue
+  at once. Mitigated with bulk revalidation, but it's real, visible
+  friction.
+- The fingerprint is a hash: if the order or format of the activities
+  changes without their content changing, rules get invalidated for no
+  reason. **The fingerprint must be computed over normalized, sorted
+  codes**, never over the raw text.
 
-## Alternativas consideradas
+## Alternatives considered
 
-**Clave solo por proveedor, global a todo el sistema.** Mucha más cobertura desde
-el primer día, pero impone el criterio de un usuario sobre otro en casos donde
-legítimamente difieren. Esa idea sobrevive, pero como **sugerencia** en el catálogo
-compartido ([ADR-007](007-modo-sin-ia-y-catalogo-compartido.md)), no como regla.
+**Key by supplier only, global across the system.** Much more coverage
+from day one, but imposes one user's judgment on another in cases where
+they legitimately differ. That idea survives, but as a **suggestion** in
+the shared catalog ([ADR-007](007-modo-sin-ia-y-catalogo-compartido.md)),
+not as a rule.
 
-**Clave por proveedor y concepto.** Era el diseño original. Inviable: la fuente no
-trae concepto.
+**Key by supplier and concept.** Was the original design. Not viable: the
+source carries no concept.
 
-**Ignorar la actividad económica.** Más simple, y funciona mientras el
-contribuyente no cambie de giro. Falla en silencio cuando lo hace, que es
-exactamente el tipo de fallo que este producto no puede permitirse.
+**Ignore economic activity.** Simpler, and works as long as the taxpayer
+doesn't change their line of business. Fails silently when they do, which
+is exactly the kind of failure this product can't afford.

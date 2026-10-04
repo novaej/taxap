@@ -1,16 +1,16 @@
-# Formato de los archivos del SRI
+# SRI file format
 
-Especificación de los archivos que el usuario descarga del portal del SRI y carga
-en taxap. **Verificado contra archivos reales el 2026-09-20.**
+Specification of the files the user downloads from the SRI portal and
+uploads to taxap. **Verified against real files on 2026-09-20.**
 
-Son archivos **`.txt` separados por tabulación**, no CSV. El parser se configura con
-delimitador explícito; no se usa autodetección.
+These are **tab-separated `.txt` files**, not CSV. The parser is
+configured with an explicit delimiter; autodetection is not used.
 
 ---
 
-## Comprobantes recibidos (compras)
+## Received vouchers (purchases)
 
-12 columnas:
+12 columns:
 
 ```
 RUC_EMISOR · RAZON_SOCIAL_EMISOR · TIPO_COMPROBANTE · SERIE_COMPROBANTE
@@ -18,39 +18,40 @@ CLAVE_ACCESO · FECHA_AUTORIZACION · FECHA_EMISION · IDENTIFICACION_RECEPTOR
 VALOR_SIN_IMPUESTOS · IVA · IMPORTE_TOTAL · NUMERO_DOCUMENTO_MODIFICADO
 ```
 
-Fila real:
+Real row:
 
 ```
 1791287541001 │ MEGADATOS S.A. │ Factura │ 001-012-024304725
 0108202601179128754100120010120243047251660131514
-01/08/2026 04:05:03 │ 01/08/2026 │ 1715824775 │ 29.99 │ 4.5 │ 34.49 │ (vacío)
+01/08/2026 04:05:03 │ 01/08/2026 │ 1715824775 │ 29.99 │ 4.5 │ 34.49 │ (empty)
 ```
 
-| Columna | Tipo | Notas |
+| Column | Type | Notes |
 |---|---|---|
-| `RUC_EMISOR` | 13 dígitos | El proveedor |
-| `RAZON_SOCIAL_EMISOR` | texto | Señal principal de clasificación |
-| `TIPO_COMPROBANTE` | texto | Lista blanca — [ADR-010](../adr/010-tratamiento-por-tipo-de-comprobante.md) |
-| `SERIE_COMPROBANTE` | `EEE-PPP-SSSSSSSSS` | Establecimiento, punto de emisión, secuencial |
-| `CLAVE_ACCESO` | 49 dígitos | Clave de deduplicación — ver abajo |
+| `RUC_EMISOR` | 13 digits | The supplier |
+| `RAZON_SOCIAL_EMISOR` | text | Main classification signal |
+| `TIPO_COMPROBANTE` | text | Allowlist — [ADR-010](../adr/010-tratamiento-por-tipo-de-comprobante.md) |
+| `SERIE_COMPROBANTE` | `EEE-PPP-SSSSSSSSS` | Establishment, emission point, sequence number |
+| `CLAVE_ACCESO` | 49 digits | Deduplication key — see below |
 | `FECHA_AUTORIZACION` | `DD/MM/AAAA HH:MM:SS` | |
-| `FECHA_EMISION` | `DD/MM/AAAA` | **Determina el período**, no la de autorización |
-| `IDENTIFICACION_RECEPTOR` | 10 o 13 dígitos | El contribuyente. Cédula si es persona natural |
-| `VALOR_SIN_IMPUESTOS` | decimal | Se almacena tal cual |
-| `IVA` | decimal | `0` en comprobantes sin IVA |
+| `FECHA_EMISION` | `DD/MM/AAAA` | **Determines the period**, not the authorization date |
+| `IDENTIFICACION_RECEPTOR` | 10 or 13 digits | The taxpayer. National ID (cédula) if a natural person |
+| `VALOR_SIN_IMPUESTOS` | decimal | Stored as-is |
+| `IVA` | decimal | `0` on vouchers with no IVA |
 | `IMPORTE_TOTAL` | decimal | |
-| `NUMERO_DOCUMENTO_MODIFICADO` | texto o vacío | Solo en notas de crédito y débito |
+| `NUMERO_DOCUMENTO_MODIFICADO` | text or empty | Only on credit and debit notes |
 
-## Comprobantes emitidos (ventas)
+## Issued vouchers (sales)
 
-**8 columnas — estructura distinta**, no es el mismo archivo con menos datos:
+**8 columns — a different structure**, not the same file with fewer
+fields:
 
 ```
 COMPROBANTE · SERIE_COMPROBANTE · CLAVE_ACCESO · FECHA_AUTORIZACION
 FECHA_EMISION · VALOR_SIN_IMPUESTOS · IVA · IMPORTE_TOTAL
 ```
 
-Fila real:
+Real row:
 
 ```
 Factura │ 001-001-000000034
@@ -58,97 +59,101 @@ Factura │ 001-001-000000034
 04/09/2026 07:32:13 │ 03/09/2026 00:00:00 │ 2500 │ 0 │ 2500
 ```
 
-Tres diferencias que obligan a un parser propio:
+Three differences that require a dedicated parser:
 
-1. La columna se llama **`COMPROBANTE`**, no `TIPO_COMPROBANTE`.
-2. **No hay identificación del emisor ni del receptor.** La pertenencia se valida
-   con el RUC que va dentro de la clave de acceso.
-3. **No hay `NUMERO_DOCUMENTO_MODIFICADO`.**
-4. `FECHA_EMISION` incluye hora (`00:00:00`); en compras no.
+1. The column is called **`COMPROBANTE`**, not `TIPO_COMPROBANTE`.
+2. **There's no issuer or recipient identification.** Ownership is
+   validated with the RUC embedded in the access key.
+3. **There's no `NUMERO_DOCUMENTO_MODIFICADO`.**
+4. `FECHA_EMISION` includes a time (`00:00:00`); in purchases it
+   doesn't.
 
 ---
 
-## La clave de acceso
+## The access key
 
-49 dígitos con estructura fija:
+49 digits with a fixed structure:
 
-| Posición | Long. | Campo |
+| Position | Length | Field |
 |---|---|---|
-| 0–7 | 8 | Fecha de emisión `DDMMAAAA` |
-| 8–9 | 2 | Tipo de comprobante |
-| 10–22 | 13 | **RUC del emisor** |
-| 23 | 1 | Ambiente (1 pruebas, 2 producción) |
-| 24–29 | 6 | Serie: establecimiento + punto de emisión |
-| 30–38 | 9 | Secuencial |
-| 39–46 | 8 | Código numérico |
-| 47 | 1 | Tipo de emisión |
-| 48 | 1 | Dígito verificador |
+| 0–7 | 8 | Issue date `DDMMAAAA` |
+| 8–9 | 2 | Voucher type |
+| 10–22 | 13 | **Issuer's RUC** |
+| 23 | 1 | Environment (1 test, 2 production) |
+| 24–29 | 6 | Series: establishment + emission point |
+| 30–38 | 9 | Sequence number |
+| 39–46 | 8 | Numeric code |
+| 47 | 1 | Emission type |
+| 48 | 1 | Check digit |
 
-### Verificación contra los ejemplos reales
+### Verification against the real examples
 
-**Compra — MEGADATOS:**
+**Purchase — MEGADATOS:**
 ```
 0108 2026 01 1791287541001 2 001012 024304725 4716601 3 1514
 ```
-| Campo extraído | Columna del archivo | ¿Coincide? |
+| Field extracted | File column | Match? |
 |---|---|---|
-| `01082026` | `FECHA_EMISION` = 01/08/2026 | Sí |
-| `1791287541001` | `RUC_EMISOR` | Sí |
-| `001012` | `SERIE_COMPROBANTE` = 001-012-… | Sí |
-| `024304725` | `SERIE_COMPROBANTE` = …-024304725 | Sí |
+| `01082026` | `FECHA_EMISION` = 01/08/2026 | Yes |
+| `1791287541001` | `RUC_EMISOR` | Yes |
+| `001012` | `SERIE_COMPROBANTE` = 001-012-… | Yes |
+| `024304725` | `SERIE_COMPROBANTE` = …-024304725 | Yes |
 
-**Venta:**
+**Sale:**
 ```
 0309 2026 01 1715824775001 2 001001 000000034 44653826 1 5
 ```
-| Campo extraído | Columna del archivo | ¿Coincide? |
+| Field extracted | File column | Match? |
 |---|---|---|
-| `03092026` | `FECHA_EMISION` = 03/09/2026 | Sí |
-| `1715824775001` | *(no hay columna)* | Es el RUC del contribuyente |
-| `001001` | `SERIE_COMPROBANTE` = 001-001-… | Sí |
-| `000000034` | `SERIE_COMPROBANTE` = …-000000034 | Sí |
+| `03092026` | `FECHA_EMISION` = 03/09/2026 | Yes |
+| `1715824775001` | *(no column)* | It's the taxpayer's RUC |
+| `001001` | `SERIE_COMPROBANTE` = 001-001-… | Yes |
+| `000000034` | `SERIE_COMPROBANTE` = …-000000034 | Yes |
 
-**Conclusión operativa:** la clave de acceso es autodescriptiva y valida de forma
-cruzada las demás columnas. Sirve simultáneamente para deduplicar, verificar
-integridad y confirmar pertenencia
+**Operational conclusion:** the access key is self-descriptive and
+cross-validates the other columns. It serves simultaneously to
+deduplicate, verify integrity, and confirm ownership
 ([ADR-009](../adr/009-clave-de-acceso-como-clave-de-deduplicacion.md)).
 
-> En la venta de ejemplo, `1715824775001` es el RUC del contribuyente, formado por
-> la cédula `1715824775` —la misma que aparece como `IDENTIFICACION_RECEPTOR` en el
-> archivo de compras— más `001`. Ambos archivos pertenecen al mismo contribuyente.
+> In the sample sale, `1715824775001` is the taxpayer's RUC, made up of
+> the national ID (cédula) `1715824775` —the same one that appears as
+> `IDENTIFICACION_RECEPTOR` in the purchases file— plus `001`. Both files
+> belong to the same taxpayer.
 
 ---
 
-## Restricciones operativas
+## Operational constraints
 
-**El SRI solo permite consultar por día.** Un período mensual puede requerir 31
-descargas. Consecuencias de diseño:
+**The SRI only allows querying by day.** A monthly period may require 31
+downloads. Design consequences:
 
-- La carga debe aceptar **múltiples archivos a la vez** y permitir agregar más a un
-  período ya iniciado.
-- Los días sin movimiento producen archivos **solo con encabezado**. No son un error.
-- La deduplicación por clave de acceso hace que el orden y la repetición sean
-  irrelevantes.
+- Upload must accept **multiple files at once** and allow adding more to
+  a period that's already underway.
+- Days with no activity produce files with **only a header**. These are
+  not an error.
+- Deduplication by access key makes order and repetition irrelevant.
 
-**Casos verificados en los ejemplos:**
+**Cases verified in the examples:**
 
-- `IVA = 0` en ventas. En el ejemplo, una venta de $2.500 sin IVA. El archivo **no
-  dice** si es exportación, venta 0% con derecho a crédito, 0% sin derecho, o no
-  objeto: son destinos distintos del formulario y de ellos depende el factor de
-  proporcionalidad. Ver [`formulario-104.md`](formulario-104.md).
-- Decimales sin ceros a la derecha: `4.5`, no `4.50`. El parser no debe asumir dos
-  decimales en el texto de origen.
-- Montos enteros sin separador decimal: `2500`.
+- `IVA = 0` on sales. In the example, a $2,500 sale with no IVA. The
+  file **does not say** whether it's an export, a 0% sale with the right
+  to credit, 0% without the right, or non-object: these are different
+  form destinations, and the proportionality factor depends on which one
+  applies. See [`formulario-104.md`](formulario-104.md).
+- Decimals with no trailing zeros: `4.5`, not `4.50`. The parser must
+  not assume two decimal places in the source text.
+- Whole amounts with no decimal separator: `2500`.
 
 ---
 
-## Pendiente de verificar
+## Pending verification
 
-- [ ] Literales exactos de `TIPO_COMPROBANTE` para notas de crédito, notas de
-      débito, liquidaciones de compra y comprobantes de retención. Solo se
-      verificaron facturas.
-- [ ] Formato de `NUMERO_DOCUMENTO_MODIFICADO` en una nota de crédito real.
-- [ ] Si el archivo de compras admite rangos de fechas o también es por día.
-- [ ] Presencia y formato exacto de la fila de encabezado.
-- [ ] Codificación del archivo (UTF-8 o Latin-1) — afecta a las razones sociales
-      con tildes y con `Ñ`.
+- [ ] Exact literal values of `TIPO_COMPROBANTE` for credit notes, debit
+      notes, purchase settlements, and withholding vouchers. Only
+      invoices have been verified.
+- [ ] Format of `NUMERO_DOCUMENTO_MODIFICADO` on a real credit note.
+- [ ] Whether the purchases file supports date ranges or is also
+      per-day only.
+- [ ] Presence and exact format of the header row.
+- [ ] File encoding (UTF-8 or Latin-1) — affects business names with
+      accents and `Ñ`.

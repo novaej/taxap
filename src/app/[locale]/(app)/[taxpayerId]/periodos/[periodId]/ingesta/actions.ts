@@ -19,8 +19,9 @@ export interface UploadResult {
 }
 
 /**
- * Paso 1 de la ingesta (ADR-011): parsea, valida y guarda comprobantes sin
- * clasificar. Síncrono, reanudable — si algo falla después, nada se pierde.
+ * Step 1 of ingestion (ADR-011): parses, validates, and saves vouchers as
+ * unclassified. Synchronous, resumable -- if something fails afterward,
+ * nothing is lost.
  */
 export async function uploadSourceFiles(
   taxpayerId: string,

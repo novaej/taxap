@@ -29,10 +29,10 @@ export interface CreatePeriodResult {
 export async function createPeriod(input: CreatePeriodInput): Promise<CreatePeriodResult> {
   const userId = await getCurrentUserId();
 
-  // UTC explícito: Prisma lee un @db.Date como medianoche UTC, así que
-  // construirlo en hora local desalinearía el mes mostrado en cualquier
-  // huso horario detrás de UTC (medianoche local de agosto cae en la
-  // noche de julio en UTC).
+  // Explicit UTC: Prisma reads a @db.Date back as UTC midnight, so
+  // building it in local time would misalign the displayed month in any
+  // timezone behind UTC (local midnight in August falls on the night of
+  // July in UTC).
   const periodStart = new Date(Date.UTC(input.year, input.month - 1, 1));
   const periodEnd = new Date(Date.UTC(input.year, input.month, 0));
 
@@ -73,9 +73,9 @@ export interface UpdatePeriodStatusResult {
 }
 
 /**
- * Transición manual DRAFT <-> UNDER_REVIEW. FILED es aparte (lockPeriod,
- * en el actions.ts del período): fija locked_at y dispara el candado de
- * Postgres de ADR-013, que esta función deliberadamente no toca.
+ * Manual DRAFT <-> UNDER_REVIEW transition. FILED is separate (lockPeriod,
+ * in the period's actions.ts): it sets locked_at and triggers ADR-013's
+ * Postgres lock, which this function deliberately leaves untouched.
  */
 export async function updatePeriodStatus(
   taxpayerId: string,
@@ -100,7 +100,7 @@ export async function updatePeriodStatus(
           newValue: status,
           actorType: 'USER',
           actorUserId: userId,
-          reason: 'Estado actualizado manualmente',
+          reason: 'Status updated manually',
         },
       });
     });
@@ -121,9 +121,9 @@ export interface DeletePeriodResult {
 }
 
 /**
- * Solo borra períodos en borrador y sin comprobantes -- un período con
- * datos o ya declarado no se borra, se reabre (reopenPeriod) si hace
- * falta corregirlo.
+ * Only deletes draft periods with no vouchers -- a period with data or
+ * already filed doesn't get deleted, it gets reopened (reopenPeriod) if
+ * it needs correcting.
  */
 export async function deletePeriod(
   taxpayerId: string,

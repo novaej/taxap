@@ -1,43 +1,45 @@
-# ADR-012: Tasas y casilleros como datos con vigencia
+# ADR-012: Rates and fields as data with effective dates
 
-> **Parcialmente reemplazado (2026-09-20):** la tabla única `form_casillero_map`
-> descrita abajo se reemplaza por `form_versions`, `form_fields` y `result_mappings`: un
-> administrador importa el formulario desde un PDF, el sistema guarda su catálogo y
-> relaciona cada resultado con su casillero por significado. Ver
-> [ADR-015](015-definicion-del-formulario-desde-pdf.md). Lo demás —tasas con
-> vigencia, consulta por la fecha del hecho, visibilidad para el usuario— sigue
-> vigente.
+> **Partially superseded (2026-09-20):** the single `form_casillero_map`
+> table described below is replaced by `form_versions`, `form_fields`, and
+> `result_mappings`: an administrator imports the form from a PDF, the
+> system stores its catalog, and relates each result to its field by
+> meaning. See [ADR-015](015-definicion-del-formulario-desde-pdf.md).
+> Everything else — rates with effective dates, lookup by the date of the
+> event, visibility for the user — still stands.
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-Dos valores no pueden vivir como constantes en el código:
+Two values can't live as constants in the code:
 
-**La tasa de IVA.** Era 12% y hoy es 15%. La tasa aplicable depende de la **fecha de
-emisión del comprobante**, no de la fecha actual. Un usuario que corrija un período
-anterior necesita la tasa que regía entonces. Con la tasa fija en el código, el
-sistema calcula mal en silencio para cualquier comprobante antiguo.
+**The VAT rate.** It used to be 12% and today it's 15%. The applicable
+rate depends on the **voucher's emission date**, not the current date. A
+user correcting a past period needs the rate that was in effect then.
+With the rate fixed in code, the system silently miscalculates for any
+old voucher.
 
-**El mapa de casilleros del formulario 104.** Es literalmente la salida del
-producto: cada total tiene que ir al casillero correcto. Si el SRI modifica el
-formulario, con el mapa en constantes cada cambio exige un despliegue — y se pierde
-la capacidad de reproducir un período pasado con el formulario que regía entonces.
+**Form 104's field map.** It's literally the product's output: every
+total has to land in the right field. If the SRI modifies the form, with
+the map in constants every change demands a deployment — and the ability
+to reproduce a past period with the form that governed it then is lost.
 
-Hay un tercer valor que **no** entra aquí. Se consideró una tabla de
-régimen → periodicidad para deducir si un contribuyente declara mensual o
-semestralmente. Se descartó: **el SRI asigna la periodicidad directamente y consta
-en el RUC del contribuyente.** Deducirla sería cuestionar la fuente autoritativa.
-La ingresa el usuario al registrar cada contribuyente, y es editable.
+There's a third value that does **not** belong here. A table mapping
+regime → filing frequency to infer whether a taxpayer files monthly or
+semiannually was considered. It was discarded: **the SRI assigns filing
+frequency directly, and it's recorded in the taxpayer's RUC.** Inferring
+it would be second-guessing the authoritative source. The user enters it
+when registering each taxpayer, and it's editable.
 
-## Decisión
+## Decision
 
-**Dos tablas de referencia con vigencia, administradas por el sistema y visibles
-para el usuario.**
+**Two reference tables with effective dates, administered by the system
+and visible to the user.**
 
 ```
 tax_rates          (tax, rate, valid_from, valid_to)
@@ -45,38 +47,43 @@ form_casillero_map (form_code, form_version, casillero, description,
                     expression, valid_from, valid_to)
 ```
 
-Toda consulta se resuelve **por la fecha del hecho**, no por la fecha actual: la
-tasa se busca con la fecha de emisión del comprobante, y el mapa de casilleros con
-la fecha del período.
+Every lookup is resolved **by the date of the event**, not the current
+date: the rate is looked up by the voucher's emission date, and the field
+map by the period's date.
 
-**Visibles para el usuario.** Un usuario debe poder abrir un casillero y ver qué
-tasa y qué versión del formulario usó el sistema. Esto no es un detalle de
-implementación: es lo que permite verificar el cálculo en vez de confiar en él, y
-es consistente con [ADR-014](014-caracter-asistivo-y-disclaimers.md).
+**Visible to the user.** A user must be able to open a field and see
+which rate and which form version the system used. This isn't an
+implementation detail: it's what allows verifying the calculation instead
+of trusting it blindly, and it's consistent with
+[ADR-014](014-caracter-asistivo-y-disclaimers.md).
 
-El acompañamiento humano está en [`docs/tax/`](../tax/), que registra de dónde
-salió cada valor y cuándo se verificó.
+Human-facing documentation is in [`docs/tax/`](../tax/), which records
+where each value came from and when it was verified.
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- Los períodos pasados se recalculan con las reglas que regían entonces.
-- Una reforma de tasa es una fila nueva, no un despliegue.
-- El usuario puede auditar los supuestos del sistema, lo que construye confianza
-  mejor que cualquier texto de marketing.
+### Positive
+- Past periods are recalculated with the rules that governed them at the
+  time.
+- A rate reform is a new row, not a deployment.
+- The user can audit the system's assumptions, which builds trust better
+  than any marketing copy.
 
-### Negativas
-- Toda operación con dinero necesita una consulta de tasa por fecha. Se resuelve
-  con caché en memoria, pero es una dependencia que el código puro de `domain/` no
-  puede resolver solo: la tasa se le **pasa** como parámetro, no la busca.
-- Las tablas hay que mantenerlas. Un cambio normativo que nadie carga significa
-  cálculos incorrectos con apariencia de normalidad. Debería existir una alerta
-  cuando un período usa una vigencia que ya venció.
+### Negative
+- Every operation involving money needs a rate lookup by date. Solved
+  with an in-memory cache, but it's a dependency that pure `domain/` code
+  can't resolve on its own: the rate is **passed in** as a parameter, not
+  looked up by it.
+- The tables have to be maintained. A regulatory change nobody loads
+  means incorrect calculations that look normal. There should be an alert
+  when a period uses an effective-date range that has already expired.
 
-## Alternativas consideradas
+## Alternatives considered
 
-**Constantes en TypeScript.** Más simple y con verificación de tipos. Descartada:
-imposibilita recalcular períodos pasados y convierte cada reforma en un despliegue.
+**Constants in TypeScript.** Simpler and type-checked. Discarded: it makes
+recalculating past periods impossible and turns every reform into a
+deployment.
 
-**Que el usuario ingrese la tasa.** Trasladaría el problema a quien no debería
-cargarlo, y produciría inconsistencias entre contribuyentes del mismo usuario.
+**Have the user enter the rate.** Would shift the problem onto someone who
+shouldn't have to carry it, and would produce inconsistencies between
+taxpayers of the same user.

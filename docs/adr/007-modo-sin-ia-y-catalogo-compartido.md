@@ -1,94 +1,96 @@
-# ADR-007: Modo sin IA y catálogo compartido de proveedores
+# ADR-007: No-AI mode and shared supplier catalog
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-Dado que los archivos del SRI no traen concepto, lo único que aporta un modelo de
-IA en este sistema es **conocimiento del mundo sobre la identidad del proveedor**:
-un motor de reglas no sabe que `MEGADATOS S.A.` vende servicios de internet; un
-modelo sí.
+Given that SRI files carry no concept, the only thing an AI model
+contributes in this system is **world knowledge about the supplier's
+identity**: a rules engine doesn't know that `MEGADATOS S.A.` sells
+internet services; a model does.
 
-Es un aporte real, pero acotado, y hay usuarios para quienes enviar datos de sus
-clientes a un tercero es inaceptable por política propia o por compromiso
-contractual con esos clientes.
+That's a real contribution, but a bounded one, and there are users for whom
+sending their clients' data to a third party is unacceptable, whether by
+their own policy or by contractual commitment to those clients.
 
-Además, ese mismo conocimiento se puede acumular dentro del sistema: si muchos
-usuarios clasifican al mismo proveedor de la misma forma, ese consenso es una
-señal más confiable que la inferencia de un modelo, porque proviene de
-profesionales decidiendo sobre proveedores ecuatorianos reales.
+Moreover, that same knowledge can be accumulated inside the system: if many
+users classify the same supplier the same way, that consensus is a more
+reliable signal than a model's inference, because it comes from
+professionals deciding on real Ecuadorian suppliers.
 
-## Decisión
+## Decision
 
-**Dos mecanismos complementarios.**
+**Two complementary mechanisms.**
 
-**1. El modo sin IA es una configuración de primera clase**, no un modo degradado.
-Se activa por cuenta (`users.ai_enabled`). Con la IA apagada, la cascada corre los
-niveles 1, 2 y 4. Nada se rompe, nada se bloquea.
+**1. No-AI mode is a first-class setting**, not a degraded mode. It's
+enabled per account (`users.ai_enabled`). With AI off, the cascade runs
+levels 1, 2, and 4. Nothing breaks, nothing blocks.
 
-**2. Catálogo compartido de proveedores.** Agregado global y **anónimo**: contiene
-el RUC del proveedor, la categoría de consenso, el grado de acuerdo y el número de
-observaciones. **No contiene identificadores de contribuyentes ni de usuarios.**
-El proveedor no es dato sensible del comprador — la relación entre comprador y
-proveedor sí lo es, y esa relación nunca entra al catálogo.
+**2. Shared supplier catalog.** Global and **anonymous** aggregate: it
+contains the supplier's RUC, the consensus category, the level of
+agreement, and the number of observations. **It contains no taxpayer or
+user identifiers.** The supplier isn't sensitive data for the buyer — the
+relationship between buyer and supplier is, and that relationship never
+enters the catalog.
 
-Un proveedor solo entra al catálogo al superar un umbral de observaciones
-independientes, y el catálogo **sugiere**, no decide: por debajo de un umbral de
-acuerdo, el comprobante va a la bandeja.
+A supplier only enters the catalog after crossing a threshold of
+independent observations, and the catalog **suggests**, it doesn't decide:
+below an agreement threshold, the voucher goes to the queue.
 
-## Diferencia práctica entre los modos
+## Practical difference between the modes
 
-| | Con IA | Sin IA |
+| | With AI | Without AI |
 |---|---|---|
-| Primer período, contribuyente nuevo | Pocos en bandeja | Bastantes más en bandeja |
-| Períodos siguientes | Mínimos | Pocos |
-| Resultado final | Idéntico | Idéntico |
+| First period, new taxpayer | Few in the queue | Considerably more in the queue |
+| Following periods | Minimal | Few |
+| Final result | Identical | Identical |
 
-Ambos convergen al mismo lugar. **La IA no es el motor: acelera el arranque en frío.**
+Both converge to the same place. **AI isn't the engine: it speeds up the
+cold start.**
 
-## Medición de consumo, no facturación
+## Usage measurement, not billing
 
-Se registra el consumo de IA por cuenta (`ai_usage`) para detectar abuso, no para
-facturarlo. El costo medido —por debajo de $0.50 mensuales para 80 contribuyentes
-en régimen estable— no justifica construir facturación medida. Los planes se
-cobran por número de contribuyentes y de usuarios
+AI usage is logged per account (`ai_usage`) to detect abuse, not to bill
+for it. The measured cost — under $0.50 monthly for 80 taxpayers at steady
+state — doesn't justify building metered billing. Plans are charged by
+number of taxpayers and users
 ([ADR-003](003-usuario-como-tenant-con-tabla-de-union.md)).
 
-## Minimización de datos hacia la IA
+## Data minimization toward the AI
 
-Cuando el nivel 3 está activo, la consulta contiene únicamente:
+When level 3 is active, the query contains only:
 
 ```
-Actividad económica del comprador: <código>
-Régimen: <régimen>
-Proveedor: <razón social>
-Monto: <valor sin impuestos> | IVA: <iva>
+Buyer's economic activity: <code>
+Regime: <regime>
+Supplier: <legal name>
+Amount: <value excluding taxes> | VAT: <iva>
 ```
 
-**No se envía el RUC ni el nombre del contribuyente.** El modelo nunca sabe de
-quién es la contabilidad.
+**Neither the RUC nor the taxpayer's name is sent.** The model never
+knows whose books these are.
 
-Esto es minimización de datos, no anonimización — la identidad del proveedor es
-irreductible porque *es* la señal de clasificación. Llamarlo anonimización en
-material comercial sería inexacto.
+This is data minimization, not anonymization — the supplier's identity is
+irreducible because it *is* the classification signal. Calling it
+anonymization in marketing material would be inaccurate.
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- El modo sin IA es vendible como postura, no como carencia.
-- El catálogo mejora con la base de usuarios y, con el tiempo, debería superar a la
-  IA en cobertura de proveedores ecuatorianos.
-- Desactivar la IA no requiere ningún camino de código alternativo.
+### Positive
+- No-AI mode is sellable as a stance, not a shortcoming.
+- The catalog improves with the user base and, over time, should surpass
+  AI in coverage of Ecuadorian suppliers.
+- Turning AI off requires no alternate code path at all.
 
-### Negativas
-- El catálogo compartido requiere masa crítica: durante los primeros meses aporta
-  poco o nada, y el modo sin IA es genuinamente más trabajoso.
-- Un sesgo sistemático entre los primeros usuarios se propaga como consenso
-  aparente. Mitigado por el umbral de acuerdo y porque la sugerencia siempre es
-  revisable, pero es un riesgo real que hay que vigilar.
-- Hay que decidir y comunicar con claridad que las clasificaciones de un usuario
-  alimentan un agregado compartido, aunque sea anónimo.
+### Negative
+- The shared catalog needs critical mass: during the first months it
+  contributes little or nothing, and no-AI mode is genuinely more work.
+- A systematic bias among early users propagates as apparent consensus.
+  Mitigated by the agreement threshold and because the suggestion is
+  always reviewable, but it's a real risk that needs watching.
+- It has to be decided and clearly communicated that one user's
+  classifications feed a shared aggregate, even if anonymous.

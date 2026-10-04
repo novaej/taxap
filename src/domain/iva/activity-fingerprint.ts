@@ -1,12 +1,11 @@
 /**
- * Huella de actividad económica (ADR-006): hash del conjunto de
- * actividades de un contribuyente, usado como parte de la clave de
- * supplier_rules. Se recalcula al editar las actividades; cuando cambia,
- * las reglas emitidas bajo el valor anterior quedan pendientes de
- * revalidación.
+ * Economic activity fingerprint (ADR-006): hash of a taxpayer's set of
+ * activities, used as part of the supplier_rules key. Recomputed when the
+ * activities are edited; when it changes, rules issued under the
+ * previous value are left pending revalidation.
  *
- * Puro: sin I/O, no importa infraestructura (ADR-001). El orden de entrada
- * no debe afectar el resultado -- se ordena antes de hashear.
+ * Pure: no I/O, no infrastructure import (ADR-001). Input order must not
+ * affect the result -- it's sorted before hashing.
  */
 
 import { createHash } from 'crypto';

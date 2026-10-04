@@ -1,567 +1,576 @@
 # Changelog
 
-Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
-Modo imperativo: "Agregar", no "Agregado".
+Format based on [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
+Imperative mood: "Add", not "Added".
 
-## [Sin publicar]
+## [Unreleased]
 
-### Agregado
-- `docs/site/screens/`: especificaciones de ingesta, ventas emitidas, conciliación,
-  pre-declaración y administración del formulario — el contrato de cada pantalla
-  antes de construirla
-- Base documental del proyecto: README, GETTING_STARTED, CLAUDE.md, NEXT_STEPS
-- 14 ADRs con las decisiones de arquitectura del MVP
-- `docs/mvp-scope.md` con alcance y criterios de aceptación
-- `docs/data-model.md` con el esquema comentado
-- `docs/tax/formato-archivos-sri.md` verificado contra archivos reales del SRI
-- `docs/tax/tasas-iva.md` y `docs/tax/formulario-104.md` como andamiaje pendiente
-  de verificación normativa
-- ADR-015: el sistema conoce el formulario 104 (catálogo completo importado desde un PDF
-  que no se guarda) y relaciona cada resultado con su casillero por significado
-- `docs/tax/formulario-104.md`: catálogo de casilleros verificado contra un formulario
-  real, con los resultados del MVP y el casillero esperado de cada uno
-- Tablas `form_versions`, `form_fields`, `result_mappings` y `period_results` en el
-  modelo de datos
+### Added
+- `docs/site/screens/`: specifications for ingestion, issued sales,
+  reconciliation, pre-filing, and form administration — the contract for
+  each screen before building it
+- Project documentation base: README, GETTING_STARTED, CLAUDE.md, NEXT_STEPS
+- 14 ADRs with the MVP's architecture decisions
+- `docs/mvp-scope.md` with scope and acceptance criteria
+- `docs/data-model.md` with the commented schema
+- `docs/tax/formato-archivos-sri.md` verified against real SRI files
+- `docs/tax/tasas-iva.md` and `docs/tax/formulario-104.md` as scaffolding
+  pending normative verification
+- ADR-015: the system knows Form 104 (full catalog imported from a PDF
+  that isn't saved) and relates each result to its field by meaning
+- `docs/tax/formulario-104.md`: field catalog verified against a real
+  form, with the MVP's results and each one's expected field
+- Tables `form_versions`, `form_fields`, `result_mappings`, and
+  `period_results` in the data model
 
-### Cambiado
-- **El formulario 104 es el destino de los resultados, no una fuente de cálculo.** El
-  dominio produce resultados con clave estable y no conoce números de casillero. Las
-  fórmulas impresas del formulario quedan en `formulario-104.md` como referencia para
-  quien implementa el dominio; el sistema no las lee ni las ejecuta.
-- **Importación del formulario.** El administrador sube el PDF una vez; se guarda el
-  catálogo completo de campos (código, nombre, sección) y nada más: ni el PDF, ni
-  valores, ni datos personales. El sistema relaciona cada resultado con su campo en
-  cascada (relación guardada → coincidencia por atributos → IA opcional → sin casillero)
-  y guarda la relación por versión del formulario, junto con la razón por la que se ubicó ahí. El administrador es del sistema y no corrige relaciones.
-- **Alcance del formulario reducido a lo básico de ventas y compras.** Fuera: liquidación,
-  saldos de crédito anteriores (605) y total a pagar.
-- **Ventas con `IVA = 0`: las marca el usuario** en una tabla tras la carga. El factor no
-  se calcula mientras haya ventas sin marcar. La bitácora cubre también este marcado.
-- **Compras con `IVA = 0` sin decisión por comprobante**: un total informativo con un
-  casillero aproximado sugerido.
-- **Se elimina `attribution`.** La clasificación de una compra es 500 o 502.
-- **El MVP se limita al formulario mensual.** El semestral pasa a `NEXT_STEPS.md`.
+### Changed
+- **Form 104 is the destination for results, not a source of
+  calculation.** The domain produces results with a stable key and
+  doesn't know field numbers. The formulas printed on the form stay in
+  `formulario-104.md` as reference material for whoever implements the
+  domain; the system never reads or executes them.
+- **Form import.** The admin uploads the PDF once; only the full field
+  catalog (code, name, section) is saved and nothing else: not the PDF,
+  not values, not personal data. The system relates each result to its
+  field via a cascade (stored relationship → attribute match → optional
+  AI → no field) and stores the relationship per form version, together
+  with the reason it was placed there. The admin is of the system and
+  does not correct relationships.
+- **Form scope reduced to the basics of sales and purchases.** Out of
+  scope: settlement, prior credit balances (605), and the total due.
+- **Sales with `IVA = 0`: marked by the user** in a table after upload.
+  The factor isn't calculated while any sales remain unmarked. The audit
+  log also covers this marking.
+- **Purchases with `IVA = 0` without a per-voucher decision**: an
+  informational total with an approximate suggested field.
+- **`attribution` is removed.** A purchase's classification is 500 or
+  502.
+- **The MVP is limited to the monthly form.** The semiannual one moves
+  to `NEXT_STEPS.md`.
 
-### Corregido
-- **Factor de proporcionalidad.** Se había documentado que con ventas sin IVA el
-  factor es cero. Es incorrecto: exportaciones y ventas 0% con derecho a crédito
-  suman al numerador (`1.0000` para quien solo exporta servicios). Corregido en
-  `mvp-scope.md`, `code-flow.md`, `formato-archivos-sri.md` y `CLAUDE.md`.
-- ADR-008 y ADR-010 anotados: `IVA = 0` sin decisión aplica a compras, no a ventas;
-  los comprobantes de retención podrían alimentar el 609.
-- **`docker-compose.yml` eliminado.** El desarrollo local usa un contenedor
-  `postgres18` administrado a mano (`docker start` / `docker run` +
-  `scripts/setup-db.sh`), no `docker compose up`. ADR-002 todavía nombra
-  `docker-compose.yml` como el mecanismo elegido — sigue pendiente un ADR nuevo
-  que lo reemplace formalmente; por ahora `docs/LOCAL-DEVELOPMENT.md` es la
-  fuente de verdad para el flujo real.
-- **`GETTING_STARTED.md` desactualizado.** Decía PostgreSQL 16+ (es 18+), y
-  listaba `npm run migrate` y `npm run test:rls`, que no existen (el script real
-  es `db:migrate`; no hay todavía un test de aislamiento RLS permanente).
-  Corregido para reflejar los pasos que de verdad funcionan hoy.
-- **RLS no filtraba nada, en silencio.** La migración de RLS
-  (`20260924062837_add_rls`) tenía dos fallos: políticas contra columnas
-  `snake_case` que no existen (el esquema no tiene `@map`, son `camelCase`), y sin
-  `FORCE ROW LEVEL SECURITY` el rol `taxap` —dueño de las tablas— quedaba exento de
-  sus propias políticas. Ninguno de los dos producía un error visible. Corregido y
-  verificado manualmente contra la base real. Ver
-  [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md), `NEXT_STEPS.md` y
-  `CLAUDE.md` → "Errores fáciles de cometer aquí".
+### Fixed
+- **Proportionality factor.** It had been documented that sales without
+  VAT give a factor of zero. That's incorrect: exports and 0%-rated sales
+  with credit entitlement add to the numerator (`1.0000` for someone who
+  only exports services). Fixed in `mvp-scope.md`, `code-flow.md`,
+  `formato-archivos-sri.md`, and `CLAUDE.md`.
+- ADR-008 and ADR-010 annotated: `IVA = 0` without a decision applies to
+  purchases, not sales; withholding vouchers might feed into field 609.
+- **`docker-compose.yml` removed.** Local development uses a
+  hand-managed `postgres18` container (`docker start` / `docker run` +
+  `scripts/setup-db.sh`), not `docker compose up`. ADR-002 still names
+  `docker-compose.yml` as the chosen mechanism — a new ADR to formally
+  replace it is still pending; for now `docs/LOCAL-DEVELOPMENT.md` is the
+  source of truth for the actual workflow.
+- **`GETTING_STARTED.md` was out of date.** It said PostgreSQL 16+ (it's
+  18+), and listed `npm run migrate` and `npm run test:rls`, which don't
+  exist (the real script is `db:migrate`; there's still no permanent RLS
+  isolation test). Fixed to reflect the steps that actually work today.
+- **RLS silently filtered nothing.** The RLS migration
+  (`20260924062837_add_rls`) had two bugs: policies against `snake_case`
+  columns that don't exist (the schema has no `@map`, they're
+  `camelCase`), and without `FORCE ROW LEVEL SECURITY` the `taxap` role —
+  owner of the tables — was exempt from its own policies. Neither
+  produced a visible error. Fixed and manually verified against the real
+  database. See [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md),
+  `NEXT_STEPS.md`, and `CLAUDE.md` → "Easy mistakes to make here".
 
-### Auditoría de documentación
-- Revisados los 32 archivos `.md` del repositorio contra el estado real del código.
-  Los ADR y `docs/tax/` están al día. Los specs pre-código
-  (`data-model.md`, `mvp-scope.md`, `code-flow.md`, `coding-guidelines.md`,
-  `docs/site/screens/`) describían un diseño más elaborado que lo construido —
-  reconciliado el 2026-09-30, ver más abajo.
+### Documentation audit
+- Reviewed the repository's 32 `.md` files against the real state of the
+  code. The ADRs and `docs/tax/` are up to date. The pre-code specs
+  (`data-model.md`, `mvp-scope.md`, `code-flow.md`,
+  `coding-guidelines.md`, `docs/site/screens/`) described a more
+  elaborate design than what was built — reconciled on 2026-09-30, see
+  below.
 
-## [2026-09-30] Reconciliación del código con los specs pre-código
+## [2026-09-30] Reconciling the code with the pre-code specs
 
-### Agregado
-- Esquema de Prisma reescrito para seguir `docs/data-model.md`: `id` con
-  `uuidv7()` nativo (PostgreSQL 18, sin extensión) en vez de `cuid()`; cada
-  columna mapeada a `snake_case` vía `@map`; tablas `plans` y `ai_usage`;
-  campos que faltaban en `taxpayers`, `tax_periods`, `invoices_received`,
-  `invoices_issued`, `supplier_rules`. `taxpayers.created_by` se agregó sin
-  estar en el spec — necesario para que Prisma pueda crear un contribuyente
-  en absoluto (ver Corregido).
-- `scripts/db-reset.ts` (`npm run db:reset`), modelado en `comprobify/db/reset.js`:
-  bloqueado en producción, borra tablas/tipos/funciones de `public` y vuelve a
-  aplicar las migraciones.
-- Enrutado movido a `src/app/[locale]/(app)/[taxpayerId]/periodos/[periodId]/...`
-  con `next-intl` (`messages/es.json`) y Server Actions, reemplazando las rutas
-  planas y las API routes REST.
-- Tailwind 4 + shadcn/ui (`components.json`, `src/components/ui/`) en vez de
-  estilos inline.
+### Added
+- Prisma schema rewritten to follow `docs/data-model.md`: `id` using
+  native `uuidv7()` (PostgreSQL 18, no extension) instead of `cuid()`;
+  every column mapped to `snake_case` via `@map`; `plans` and `ai_usage`
+  tables; fields that were missing on `taxpayers`, `tax_periods`,
+  `invoices_received`, `invoices_issued`, `supplier_rules`.
+  `taxpayers.created_by` was added even though it wasn't in the spec —
+  needed for Prisma to be able to create a taxpayer at all (see Fixed).
+- `scripts/db-reset.ts` (`npm run db:reset`), modeled on
+  `comprobify/db/reset.js`: blocked in production, drops tables/types/
+  functions from `public` and reapplies the migrations.
+- Routing moved to
+  `src/app/[locale]/(app)/[taxpayerId]/periodos/[periodId]/...` with
+  `next-intl` (`messages/es.json`) and Server Actions, replacing the flat
+  routes and REST API routes.
+- Tailwind 4 + shadcn/ui (`components.json`, `src/components/ui/`)
+  instead of inline styles.
 
-### Corregido
-- **RLS, dos fallos más** además de los ya corregidos el 2026-09-24 (ver
-  entrada de ese día): `INSERT ... RETURNING` de Prisma —que `.create()`
-  siempre usa— se filtra por la política de `SELECT`, así que nadie podía
-  crear un contribuyente hasta agregar `taxpayers.created_by`. Y el propio
-  ejemplo de política en ADR-004 hace *bypass* cuando la variable de sesión
-  está simplemente sin fijar, indistinguible de una consulta que alguien
-  olvidó envolver en `withUser()` — corregido con un id centinela que
-  `asAdmin()` debe fijar a propósito. Ver la nota de actualización agregada a
-  ADR-004 y CLAUDE.md → "Errores fáciles de cometer aquí".
-- **`SALES_NON_OBJECT_EXEMPT`** (encontrado en la auditoría del 2026-09-26,
-  sin corregir entonces): agregado a `RESULT_KEYS` y `calculator.ts`.
-- **`file-parser.ts` no coincidía con el formato verificado.** Columnas
-  inventadas (`DESCUENTO`, `ESTADO`, `NUMERO_COMPROBANTE`), faltaba
-  `RAZON_SOCIAL_EMISOR`. Arrastraba dos bugs: `ingestion-service.ts` verificaba
-  la consistencia de la clave de acceso contra la columna equivocada
-  (`COMPROBANTE`, el tipo de comprobante, en vez de `SERIE_COMPROBANTE`), y
-  `parseDate` no recortaba la hora de `FECHA_EMISION` en emitidas, invalidando
-  la fecha en silencio.
-- `requiresManualReview` tenía una segunda lista de tipos de comprobante
-  "estándar" que no coincidía con la lista blanca real de `ingestion-service.ts`
-  (ADR-010) — dos fuentes de verdad para la misma decisión. Unificado a una sola.
+### Fixed
+- **RLS, two more bugs** beyond the ones already fixed on 2026-09-24
+  (see that day's entry): Prisma's `INSERT ... RETURNING` — which
+  `.create()` always uses — gets filtered by the `SELECT` policy, so no
+  one could create a taxpayer until `taxpayers.created_by` was added.
+  And ADR-004's own policy example *bypasses* when the session variable
+  is simply unset, indistinguishable from a query someone forgot to wrap
+  in `withUser()` — fixed with a sentinel id that `asAdmin()` must set on
+  purpose. See the update note added to ADR-004 and CLAUDE.md → "Easy
+  mistakes to make here".
+- **`SALES_NON_OBJECT_EXEMPT`** (found in the 2026-09-26 audit, not
+  fixed then): added to `RESULT_KEYS` and `calculator.ts`.
+- **`file-parser.ts` didn't match the verified format.** Invented
+  columns (`DESCUENTO`, `ESTADO`, `NUMERO_COMPROBANTE`), missing
+  `RAZON_SOCIAL_EMISOR`. It dragged along two bugs: `ingestion-service.ts`
+  checked the access key's consistency against the wrong column
+  (`COMPROBANTE`, the voucher type, instead of `SERIE_COMPROBANTE`), and
+  `parseDate` didn't strip the time from `FECHA_EMISION` on issued
+  vouchers, silently invalidating the date.
+- `requiresManualReview` had a second list of "standard" voucher types
+  that didn't match the real whitelist in `ingestion-service.ts`
+  (ADR-010) — two sources of truth for the same decision. Unified into
+  one.
 
-### Sin decidir
-- `docs/guides/coding-guidelines.md` pide SQL crudo para el factor de
-  proporcionalidad; el dominio lo calcula en TypeScript puro, que es lo que
-  ADR-001 pide para probar el motor sin base de datos. La guía quedó sin
-  corregir — ver `NEXT_STEPS.md`.
+### Undecided
+- `docs/guides/coding-guidelines.md` calls for raw SQL for the
+  proportionality factor; the domain calculates it in pure TypeScript,
+  which is what ADR-001 requires in order to test the engine without a
+  database. The guide was left uncorrected — see `NEXT_STEPS.md`.
 
-## [2026-10-01] Autenticación conectada
+## [2026-10-01] Authentication wired up
 
-### Agregado
-- NextAuth v5 con proveedor `Credentials` (correo + contraseña, `bcryptjs`,
-  sesión JWT) — `src/lib/auth.ts`, `src/app/api/auth/[...nextauth]/route.ts`.
-  `src/lib/session.ts` da un `getCurrentUserId()` compartido que reemplaza el
-  stub que cada `actions.ts` tenía por separado.
-- Pantallas `/login` y `/register` (`src/app/[locale]/(auth)/`).
-- `src/proxy.ts` redirige a `/login` cualquier ruta bajo `/periodos/` sin
-  sesión.
-- `prisma/seed.ts`: siembra los planes (`plans`) — no existía, pese a que
-  `package.json` ya apuntaba `db:seed` a ese archivo. `db:reset` ahora lo
-  corre automáticamente al final.
+### Added
+- NextAuth v5 with the `Credentials` provider (email + password,
+  `bcryptjs`, JWT session) — `src/lib/auth.ts`,
+  `src/app/api/auth/[...nextauth]/route.ts`. `src/lib/session.ts`
+  provides a shared `getCurrentUserId()` that replaces the stub each
+  `actions.ts` had separately.
+- `/login` and `/register` screens (`src/app/[locale]/(auth)/`).
+- `src/proxy.ts` redirects any route under `/periodos/` to `/login`
+  without a session.
+- `prisma/seed.ts`: seeds the plans (`plans`) — it didn't exist, even
+  though `package.json` already pointed `db:seed` at that file.
+  `db:reset` now runs it automatically at the end.
 
-### Corregido
-- **El registro no podía completarse nunca.** `users.plan_code` es una FK a
-  `plans.code`, y no había ninguna fila en `plans`. Resuelto por el seed
-  nuevo.
-- **El middleware de autenticación no se ejecutaba.** Dos causas, ambas
-  silenciosas (no había ningún error, la ruta protegida simplemente
-  renderizaba sin redirigir): `middleware.ts` estaba en la raíz del proyecto,
-  pero con un directorio `src/` Next.js solo lo reconoce en
-  `src/middleware.ts`; y Next.js 16 renombró todo el mecanismo a `proxy.ts`
-  (`middleware.ts` queda deprecado). Movido a `src/proxy.ts` con la función
-  exportada como `proxy`.
+### Fixed
+- **Registration could never complete.** `users.plan_code` is an FK to
+  `plans.code`, and `plans` had no rows. Resolved by the new seed.
+- **The authentication middleware never ran.** Two causes, both silent
+  (no error at all, the protected route simply rendered without
+  redirecting): `middleware.ts` was at the project root, but with a
+  `src/` directory Next.js only recognizes it at `src/middleware.ts`;
+  and Next.js 16 renamed the whole mechanism to `proxy.ts`
+  (`middleware.ts` is now deprecated). Moved to `src/proxy.ts` with the
+  function exported as `proxy`.
 
-Verificado end-to-end contra la base real: registro, login vía el endpoint
-real de NextAuth (`/api/auth/callback/credentials`), sesión con `user.id`
-poblado, y las cuatro pantallas de período respondiendo 200 con un
-contribuyente y un período creados a mano para la prueba (todavía no hay
-pantalla de alta de contribuyente — ver `NEXT_STEPS.md`).
+Verified end to end against the real database: registration, login via
+NextAuth's real endpoint (`/api/auth/callback/credentials`), a session
+with `user.id` populated, and the four period screens responding 200
+with a taxpayer and a period created by hand for the test (still no
+taxpayer creation screen — see `NEXT_STEPS.md`).
 
-## [2026-10-02] Bloqueo de período (ADR-013, segundo mecanismo)
+## [2026-10-02] Period lock (ADR-013, second mechanism)
 
-### Agregado
-- Disparador en `invoices_received`/`invoices_issued`
-  (`prisma/migrations/20261001000000_add_period_lock/`) que rechaza INSERT,
-  UPDATE y DELETE cuando `tax_periods.locked_at` está fijado. Vive en
-  Postgres, como el de inmutabilidad de `classification_events`, para que
-  ninguna consulta administrativa lo sortee. Verificado contra la base real:
-  las tres operaciones se bloquean con el período cerrado y funcionan de
-  nuevo tras reabrirlo.
+### Added
+- Trigger on `invoices_received`/`invoices_issued`
+  (`prisma/migrations/20261001000000_add_period_lock/`) that rejects
+  INSERT, UPDATE, and DELETE when `tax_periods.locked_at` is set. It
+  lives in Postgres, like the `classification_events` immutability
+  trigger, so no administrative query can bypass it. Verified against
+  the real database: all three operations are blocked with the period
+  closed and work again after reopening it.
 
-### Corregido
-- `lockPeriod()` y `reopenPeriod()` no registraban ningún evento. ADR-013
-  exige explícitamente que la reapertura quede registrada. Ambas acciones
-  ahora escriben un evento en `classification_events`.
+### Fixed
+- `lockPeriod()` and `reopenPeriod()` weren't logging any event.
+  ADR-013 explicitly requires that reopening be logged. Both actions now
+  write an event to `classification_events`.
 
-### Verificado (sin cambios de código)
-- El bloqueo del factor de proporcionalidad cuando no hay ventas
-  (denominador cero) ya estaba resuelto en `proportionality.ts` —
-  `NEXT_STEPS.md` lo tenía listado como pendiente por error. Lo único que
-  sigue abierto es una pregunta externa (qué espera el portal del SRI en el
-  563 en ese caso), ya marcada `[VERIFICAR]` en `formulario-104.md`.
+### Verified (no code changes)
+- The block on the proportionality factor when there are no sales (zero
+  denominator) was already resolved in `proportionality.ts` —
+  `NEXT_STEPS.md` had it listed as pending by mistake. The only thing
+  still open is an external question (what the SRI portal expects in
+  field 563 in that case), already marked `[VERIFICAR]` in
+  `formulario-104.md`.
 
-## [2026-10-02] Documentación: de specs pre-código a documentación de lo real
+## [2026-10-02] Documentation: from pre-code specs to documentation of the real thing
 
-Con el MVP funcionando de principio a fin, los documentos escritos *antes*
-de que existiera código dejaron de ser la referencia correcta -- describían
-una intención, no lo construido, y habían divergido en varios puntos reales
-(convenciones de esquema, rutas, Server Actions vs. API routes REST). Esta
-entrada reemplaza esos documentos por otros que describen lo que la app
-hace hoy.
+With the MVP working end to end, the documents written *before* any code
+existed stopped being the correct reference — they described an intent,
+not what was built, and had diverged on several real points (schema
+conventions, routes, Server Actions vs. REST API routes). This entry
+replaces those documents with others that describe what the app does
+today.
 
-### Eliminado
-- `docs/mvp-scope.md` — criterios de aceptación pre-construcción; su
-  contenido vigente ya vive en `README.md` (qué hace) y `NEXT_STEPS.md`
-  (qué queda fuera).
-- `docs/site/screens/` (5 specs + README) — contratos de pantalla
-  "antes de construirla". Reemplazados por
-  `docs/guides/code-flow.md`, que describe las rutas, Server Actions y
-  comportamiento reales de las cuatro pantallas construidas.
-- `docs/LOCAL-DEVELOPMENT.md` — fusionado en `GETTING_STARTED.md`. Tener dos
-  documentos de arranque fue la causa raíz del bug de `docker-compose.yml`
-  corregido el 2026-09-24; un solo archivo de inicio rápido evita que vuelva
-  a pasar.
+### Removed
+- `docs/mvp-scope.md` — pre-build acceptance criteria; its still-valid
+  content now lives in `README.md` (what it does) and `NEXT_STEPS.md`
+  (what's left out).
+- `docs/site/screens/` (5 specs + README) — "before building it" screen
+  contracts. Replaced by `docs/guides/code-flow.md`, which describes the
+  real routes, Server Actions, and behavior of the four screens built.
+- `docs/LOCAL-DEVELOPMENT.md` — merged into `GETTING_STARTED.md`. Having
+  two startup documents was the root cause of the `docker-compose.yml`
+  bug fixed on 2026-09-24; a single quickstart file keeps it from
+  happening again.
 
-### Cambiado
-- `docs/guides/code-flow.md` reescrito por completo: recorrido real de las
-  cuatro pantallas (ingesta, ventas emitidas, conciliación,
-  pre-declaración) con rutas, Server Actions y nombres de archivo tal como
-  existen, no como se planeaban. Incluye qué falta (alta de contribuyente,
-  administración del formulario, niveles 2/3 de la cascada).
-- `docs/data-model.md` reescrito para coincidir exactamente con
-  `prisma/schema.prisma` — antes solo se había corregido la línea de
-  `uuidv7()`, el resto seguía describiendo el diseño pre-reconciliación
-  (nombres de tabla/campo que ya no existen, tablas que faltaban). Documenta
-  también `taxpayers.created_by`, que no está en el diseño original (ver
-  entrada del 2026-09-30).
-- `docs/guides/coding-guidelines.md`: corregida la instrucción de "SQL
-  crudo para agregaciones" (el dominio las calcula en TypeScript puro,
-  intencionalmente, por ADR-001); la sección de pruebas ahora dice que no
-  hay test runner configurado en vez de describir una convención
-  (`tests/domain/`, etc.) que nunca existió.
-- `README.md`: estado actualizado de "MVP en definición" a lo que
-  realmente funciona hoy; la tabla de stack separa lo que está en uso de lo
-  planeado (IA, Sentry, despliegue no están implementados todavía).
-- `CLAUDE.md`: el contexto obligatorio ya no apunta a `docs/mvp-scope.md`
-  (eliminado) sino a `docs/guides/code-flow.md`.
-- `NEXT_STEPS.md`: quitados todos los ítems ya resueltos (quedan en el
-  historial de este changelog, no duplicados ahí). Solo quedan decisiones
-  abiertas, trabajo por construir y verificación normativa pendiente.
+### Changed
+- `docs/guides/code-flow.md` rewritten entirely: a real walkthrough of
+  the four screens (ingestion, issued sales, reconciliation, pre-filing)
+  with routes, Server Actions, and file names as they actually exist,
+  not as planned. Includes what's missing (taxpayer creation, form
+  administration, cascade tiers 2/3).
+- `docs/data-model.md` rewritten to match `prisma/schema.prisma`
+  exactly — previously only the `uuidv7()` line had been corrected, the
+  rest still described the pre-reconciliation design (table/field names
+  that no longer exist, missing tables). It also documents
+  `taxpayers.created_by`, which isn't in the original design (see the
+  2026-09-30 entry).
+- `docs/guides/coding-guidelines.md`: fixed the "raw SQL for
+  aggregations" instruction (the domain calculates them in pure
+  TypeScript, intentionally, per ADR-001); the testing section now says
+  there's no test runner configured instead of describing a convention
+  (`tests/domain/`, etc.) that never existed.
+- `README.md`: status updated from "MVP being defined" to what actually
+  works today; the stack table separates what's in use from what's
+  planned (AI, Sentry, deployment aren't implemented yet).
+- `CLAUDE.md`: the required context no longer points to
+  `docs/mvp-scope.md` (removed) but to `docs/guides/code-flow.md`.
+- `NEXT_STEPS.md`: removed every already-resolved item (they remain in
+  this changelog's history, not duplicated there). Only open decisions,
+  work to build, and pending normative verification remain.
 
-## [2026-10-03] `.env.local` se carga sola; ya no hace falta exportarla a mano
+## [2026-10-03] `.env.local` now loads itself; no more exporting it by hand
 
-`npx prisma migrate dev`, `npm run db:seed`, `npm run db:reset` y
-`npm run seed:test-taxpayer` pedían `export $(cat .env.local | xargs)` antes
-de correr, porque ninguno pasa por el auto-load de `.env.local` que sí tiene
-`next dev`. Comparado contra el patrón de `comprobify-web` (que no necesita
-este paso): su `prisma.config.ts` y sus scripts (`db-reset.js`, `seed.js`)
-cargan `.env.local` ellos mismos con `dotenv`.
+`npx prisma migrate dev`, `npm run db:seed`, `npm run db:reset`, and
+`npm run seed:test-taxpayer` required `export $(cat .env.local | xargs)`
+before running, because none of them go through the `.env.local`
+auto-load that `next dev` has. Compared against the `comprobify-web`
+pattern (which doesn't need this step): its `prisma.config.ts` and its
+scripts (`db-reset.js`, `seed.js`) load `.env.local` themselves with
+`dotenv`.
 
-### Agregado
-- `dotenv` como dependencia de desarrollo.
-- `prisma.config.ts` ahora llama a `dotenv`'s `config({ path: '.env.local' })`
-  antes de `defineConfig(...)` — funciona para todo lo que pasa por la CLI
-  de Prisma (`migrate`, `studio`, etc.), sin tocar los scripts de
-  `package.json`.
+### Added
+- `dotenv` as a dev dependency.
+- `prisma.config.ts` now calls `dotenv`'s `config({ path: '.env.local' })`
+  before `defineConfig(...)` — works for everything that goes through
+  the Prisma CLI (`migrate`, `studio`, etc.), without touching the
+  `package.json` scripts.
 
-### Corregido
-- **El mismo patrón no funciona para `prisma/seed.ts` ni
-  `scripts/seed-test-taxpayer.ts`.** Ambos importan `src/lib/db.ts`, que
-  construye su `Pool` de Postgres al cargarse. esbuild (el compilador detrás
-  de `tsx`) sube todos los `require` generados por `import` al tope del
-  archivo compilado, sin importar dónde aparecían los `import` en el código
-  fuente — así que un `import { config } from 'dotenv'; config(...)`
-  escrito *antes* del `import` de `db.ts` de todas formas se ejecuta
-  *después*, porque ambos `require` ya subieron al tope. `db.ts` terminaba
-  leyendo `process.env.DATABASE_URL` como `undefined`, y Postgres rechazaba
-  la conexión con un error de autenticación SASL que no menciona variables
-  de entorno en ningún lado — habría sido muy fácil darlo por una falla de
-  credenciales. Diagnosticado comparando una conexión directa con `pg` (que
-  sí funcionaba) contra la misma conexión vía el adaptador de Prisma
-  importado desde un archivo separado (que no).
+### Fixed
+- **The same pattern doesn't work for `prisma/seed.ts` or
+  `scripts/seed-test-taxpayer.ts`.** Both import `src/lib/db.ts`, which
+  builds its Postgres `Pool` on load. esbuild (the compiler behind
+  `tsx`) hoists every `require` generated from an `import` to the top of
+  the compiled file, regardless of where the `import` statements
+  appeared in the source — so an `import { config } from 'dotenv';
+  config(...)` written *before* the `import` of `db.ts` still ends up
+  executing *after* it, because both `require`s already got hoisted to
+  the top. `db.ts` ended up reading `process.env.DATABASE_URL` as
+  `undefined`, and Postgres rejected the connection with a SASL
+  authentication error that doesn't mention environment variables
+  anywhere — it would have been very easy to mistake this for a
+  credentials failure. Diagnosed by comparing a direct `pg` connection
+  (which worked) against the same connection via the Prisma adapter
+  imported from a separate file (which didn't).
 
-  Arreglado sembrando `dotenv` por fuera del grafo de módulos, con
-  `tsx --import dotenv/config` y `DOTENV_CONFIG_PATH=.env.local` en los
-  scripts de `package.json`, en vez de un `import` dentro del propio
-  archivo. `scripts/db-reset.ts` no necesitaba el cambio: no importa
-  `db.ts` directamente, y el `prisma/seed.ts` que ejecuta como proceso hijo
-  hereda el entorno ya correcto del proceso padre.
-- `GETTING_STARTED.md`: quitados los tres pasos de
-  `export $(cat .env.local | xargs)` — ya no hacen falta.
+  Fixed by seeding `dotenv` from outside the module graph, with
+  `tsx --import dotenv/config` and `DOTENV_CONFIG_PATH=.env.local` in
+  the `package.json` scripts, instead of an `import` inside the file
+  itself. `scripts/db-reset.ts` didn't need the change: it doesn't
+  import `db.ts` directly, and the `prisma/seed.ts` it runs as a child
+  process inherits the already-correct environment from the parent
+  process.
+- `GETTING_STARTED.md`: removed the three
+  `export $(cat .env.local | xargs)` steps — no longer needed.
 
-## [2026-10-04] La clave de acceso se parseaba con un layout inventado
+## [2026-10-04] The access key was parsed with a made-up layout
 
-Reportado por el usuario al cargar un archivo real de recibidas: todas las
-filas fallaban con "Check digit mismatch", "Empty digits must be 000" y
+Reported by the user when uploading a real received-vouchers file: every
+row failed with "Check digit mismatch", "Empty digits must be 000", and
 "Receiver RUC ... does not match taxpayer [UUID]".
 
-### Corregido
-- **`access-key.ts` nunca se verificó contra el formato real.** Mismo tipo
-  de error que ya se corrigió en `file-parser.ts` el 2026-09-30 — esta vez
-  en el archivo que faltaba revisar en esa misma pasada. El layout de
-  `parseAccessKey` no coincidía con la tabla verificada de
-  `docs/tax/formato-archivos-sri.md` (que ADR-009 sí documentaba bien: el
-  código nunca se alineó con ninguno de los dos):
-  - El dígito verificador real está en la posición 48 (el último), no en
-    la 23. La posición 23 es el dígito de "ambiente" (1 pruebas, 2
-    producción) — por eso todos los errores decían "expected X, got 2": el
-    código leía el ambiente y lo trataba como dígito verificador.
-  - No existe un campo de "dígitos vacíos que deben ser 000". Esa posición
-    (24-26) es en realidad el inicio del establecimiento dentro de la
-    serie.
-  - El RUC del emisor (13 dígitos, posición 10-22) nunca se extraía ni se
-    comparaba contra nada.
-  - El cálculo del dígito verificador (mod 11, pesos `7,6,5,4,3,2`) estaba
-    bien, pero se aplicaba sobre los primeros 23 dígitos en vez de los
-    primeros 48.
-  Reescrito y verificado contra las dos claves reales de
-  `formato-archivos-sri.md` (dígitos verificadores 4 y 5, ambos correctos
-  con el layout corregido).
-- **La Server Action de ingesta pasaba el UUID del contribuyente donde
-  `ingestion-service.ts` esperaba su RUC.** Por eso el segundo error en
-  cada fila: "Receiver RUC 1715824775 does not match taxpayer
-  01a10783-...". Corregido para buscar `taxpayer.ruc` antes de validar.
-- **`validateIssuedRow` no tenía forma de recibir el RUC del contribuyente**
-  — pasaba `''` a `verifyAccessKeyConsistency`, que con la función ya
-  corregida (antes era un placeholder que solo revisaba que no estuviera
-  vacío) habría rechazado toda fila de ventas con "RUC cannot be empty".
-  No se había manifestado todavía porque el usuario solo había probado
-  recibidas. Agregado el parámetro.
-- **La verificación de pertenencia no distinguía cédula (10 dígitos) de RUC
-  completo (13 dígitos).** `IDENTIFICACION_RECEPTOR` trae la cédula cuando
-  el receptor es persona natural (documentado en
-  `formato-archivos-sri.md`), y el RUC completo es la cédula más un sufijo
-  de 3 dígitos. Una comparación directa (`!==`) habría seguido fallando
-  para el mismo archivo del usuario incluso después de arreglar el bug del
-  UUID. Ahora acepta ambos casos.
+### Fixed
+- **`access-key.ts` was never verified against the real format.** Same
+  type of bug already fixed in `file-parser.ts` on 2026-09-30 — this
+  time in the file that was missed in that same pass. The layout of
+  `parseAccessKey` didn't match the verified table in
+  `docs/tax/formato-archivos-sri.md` (which ADR-009 did document
+  correctly: the code was never aligned with either one):
+  - The real check digit is at position 48 (the last one), not 23.
+    Position 23 is the "environment" digit (1 test, 2 production) —
+    which is why every error said "expected X, got 2": the code was
+    reading the environment and treating it as the check digit.
+  - There is no "empty digits that must be 000" field. That position
+    (24-26) is actually the start of the establishment within the
+    series.
+  - The issuer's RUC (13 digits, position 10-22) was never extracted or
+    compared against anything.
+  - The check-digit calculation (mod 11, weights `7,6,5,4,3,2`) was
+    correct, but it was applied to the first 23 digits instead of the
+    first 48.
+  Rewritten and verified against the two real keys in
+  `formato-archivos-sri.md` (check digits 4 and 5, both correct with the
+  fixed layout).
+- **The ingestion Server Action was passing the taxpayer's UUID where
+  `ingestion-service.ts` expected its RUC.** Hence the second error in
+  every row: "Receiver RUC 1715824775 does not match taxpayer
+  01a10783-...". Fixed to look up `taxpayer.ruc` before validating.
+- **`validateIssuedRow` had no way to receive the taxpayer's RUC** — it
+  passed `''` to `verifyAccessKeyConsistency`, which, with the now-fixed
+  function (previously a placeholder that only checked it wasn't empty),
+  would have rejected every sales row with "RUC cannot be empty". It
+  hadn't shown up yet because the user had only tested received
+  vouchers. Parameter added.
+- **The ownership check didn't distinguish a cédula (10 digits) from a
+  full RUC (13 digits).** `IDENTIFICACION_RECEPTOR` carries the cédula
+  when the recipient is a natural person (documented in
+  `formato-archivos-sri.md`), and the full RUC is the cédula plus a
+  3-digit suffix. A direct comparison (`!==`) would have kept failing
+  for the user's same file even after fixing the UUID bug. It now
+  accepts both cases.
 
-## [2026-10-04] Pantallas de contribuyentes y períodos; navegación completa sin URLs a mano
+## [2026-10-04] Taxpayer and period screens; full navigation without hand-typed URLs
 
-Hasta ahora la única forma de crear un contribuyente o un período era
-`scripts/seed-test-taxpayer.ts` contra la base directamente. Esta entrada
-agrega las pantallas que lo reemplazan y cierra el hueco de navegación que
-dejaban.
+Until now the only way to create a taxpayer or a period was
+`scripts/seed-test-taxpayer.ts` directly against the database. This
+entry adds the screens that replace it and closes the navigation gap
+they left.
 
-### Agregado
-- `src/domain/iva/activity-fingerprint.ts` — `computeActivityFingerprint()`
-  (ADR-006), pura: hash SHA-256 de las actividades económicas ordenadas. No
-  existía ninguna implementación pese a que `Taxpayer.activityFingerprint`
-  ya era un campo obligatorio del esquema.
-- `/[locale]/(app)/taxpayers` — lista de contribuyentes del usuario, con
-  logout (`signOut()` de `next-auth/react`).
-- `/[locale]/(app)/taxpayers/new` — alta de contribuyente: RUC, razón
-  social, nombre comercial opcional, régimen, periodicidad de IVA y
-  actividades económicas (lista dinámica).
-- `/[locale]/(app)/[taxpayerId]/periodos` — lista de períodos del
-  contribuyente y alta de período nuevo (año + mes, mensual e IVA por
-  ahora).
-- `TROUBLESHOOTING.md` — errores de entorno e infraestructura, separado de
-  `GETTING_STARTED.md` (que ahora es solo instalación + recorrido rápido).
+### Added
+- `src/domain/iva/activity-fingerprint.ts` —
+  `computeActivityFingerprint()` (ADR-006), pure: SHA-256 hash of the
+  sorted economic activities. No implementation existed even though
+  `Taxpayer.activityFingerprint` was already a required field in the
+  schema.
+- `/[locale]/(app)/taxpayers` — the user's taxpayer list, with logout
+  (`signOut()` from `next-auth/react`).
+- `/[locale]/(app)/taxpayers/new` — taxpayer creation: RUC, legal name,
+  optional trade name, regime, VAT periodicity, and economic activities
+  (dynamic list).
+- `/[locale]/(app)/[taxpayerId]/periodos` — the taxpayer's period list
+  and new-period creation (year + month, monthly and VAT for now).
+- `TROUBLESHOOTING.md` — environment and infrastructure errors, split
+  off from `GETTING_STARTED.md` (which is now just install + quick
+  walkthrough).
 
-### Cambiado
-- `src/proxy.ts` pasó de lista negra (`pathname.includes('/periodos/')`,
-  que no cubría `/taxpayers` ni `/[taxpayerId]/periodos` sin segmento
-  final) a lista blanca: toda ruta exige sesión salvo `/login`, `/register`
-  y la portada. Una pantalla nueva queda protegida por defecto.
-- `/[locale]` (portada) ya no es una lista de módulos con un
-  `taxpayerId`/`periodId` de demostración fijo (`/demo/periodos/demo`).
-  Ahora redirige: con sesión a `/taxpayers`, sin sesión a `/login`.
-- Las cuatro pantallas de período (ingesta, ventas, conciliación,
-  pre-declaración) tenían un enlace "volver" que apuntaba a `/` sin
-  resolver nada. Ahora llevan a la pantalla anterior real en la jerarquía
-  (lista de períodos, o la raíz del período).
-- `GETTING_STARTED.md`: la sección 5 pasó de "crear un contribuyente de
-  prueba por script" a un recorrido completo dentro de la aplicación,
-  registro incluido. "Verificación de RLS" y "Problemas frecuentes" se
-  movieron a `TROUBLESHOOTING.md`.
-- `docs/guides/code-flow.md`: nueva sección "0. Contribuyentes y períodos"
-  documentando las pantallas y Server Actions nuevas, y la razón por la
-  que `taxpayers` no tiene política de `DELETE` (deliberado, no un hueco).
+### Changed
+- `src/proxy.ts` went from a blacklist (`pathname.includes('/periodos/')`,
+  which didn't cover `/taxpayers` or `/[taxpayerId]/periodos` without a
+  trailing segment) to a whitelist: every route requires a session
+  except `/login`, `/register`, and the landing page. A new screen is
+  protected by default.
+- `/[locale]` (landing page) is no longer a list of modules with a fixed
+  demo `taxpayerId`/`periodId` (`/demo/periodos/demo`). It now
+  redirects: with a session to `/taxpayers`, without one to `/login`.
+- The four period screens (ingestion, sales, reconciliation, pre-filing)
+  had a "back" link pointing to `/` that resolved nothing. They now lead
+  to the real previous screen in the hierarchy (period list, or the
+  period's root).
+- `GETTING_STARTED.md`: section 5 went from "create a test taxpayer via
+  script" to a full walkthrough inside the application, registration
+  included. "RLS verification" and "Common issues" moved to
+  `TROUBLESHOOTING.md`.
+- `docs/guides/code-flow.md`: new section "0. Taxpayers and periods"
+  documenting the new screens and Server Actions, and the reason why
+  `taxpayers` has no `DELETE` policy (deliberate, not a gap).
 
-### Eliminado
-- `scripts/seed-test-taxpayer.ts` y el script `seed:test-taxpayer` de
-  `package.json` — reemplazados por las pantallas reales.
+### Removed
+- `scripts/seed-test-taxpayer.ts` and the `seed:test-taxpayer` script
+  from `package.json` — replaced by the real screens.
 
-### Hallazgo (sin cambio de código)
-- La tabla `taxpayers` nunca tuvo política de RLS para `DELETE` —ni
-  siquiera para `is_system_admin()`— y con `FORCE ROW LEVEL SECURITY` eso
-  bloquea el comando por completo para cualquier fila, no solo lo filtra.
-  Confirmado al verificar el flujo nuevo contra la base real: un
-  contribuyente de prueba quedó sin forma de borrarse desde el rol `taxap`.
-  Es coherente con la bitácora inmutable de ADR-013, así que se documenta
-  en `TROUBLESHOOTING.md` en vez de tratarse como bug.
+### Finding (no code change)
+- The `taxpayers` table never had an RLS policy for `DELETE` — not even
+  for `is_system_admin()` — and with `FORCE ROW LEVEL SECURITY` that
+  blocks the command entirely for any row, not just filters it.
+  Confirmed while verifying the new flow against the real database: a
+  test taxpayer ended up with no way to be deleted from the `taxap`
+  role. This is consistent with ADR-013's immutable audit log, so it's
+  documented in `TROUBLESHOOTING.md` instead of being treated as a bug.
 
-## [2026-10-04] Editar contribuyente y período; menú de navegación
+## [2026-10-04] Edit taxpayer and period; navigation menu
 
-### Agregado
-- `/[locale]/(app)/[taxpayerId]/editar` — edición de contribuyente
-  (razón social, nombre comercial, régimen, periodicidad, actividades);
-  mismo formulario que el alta (`taxpayers/taxpayer-form.tsx`, ahora
-  compartido entre `taxpayers/new` y esta pantalla).
-- `updateTaxpayer()` (`[taxpayerId]/actions.ts`) — recalcula
-  `activityFingerprint` igual que `createTaxpayer()`; RUC duplicado
-  devuelve `RUC_IN_USE` excluyendo al propio contribuyente de la
-  comprobación.
-- `updatePeriodStatus()` y `deletePeriod()`
-  (`[taxpayerId]/periodos/actions.ts`): transición manual
-  `DRAFT ↔ UNDER_REVIEW` con evento en `classification_events`
-  (ADR-013), y borrado de un período solo si está en `DRAFT` y sin
-  comprobantes cargados.
-- `src/app/[locale]/(app)/layout.tsx` — menú persistente (nombre de la
-  app + logout) en toda la aplicación autenticada. No existía ningún
-  layout compartido antes de esto; cada pantalla armaba su propio
-  encabezado.
-- `src/app/[locale]/(app)/[taxpayerId]/layout.tsx` — franja secundaria
-  con la razón social y enlaces a "Períodos" / "Editar contribuyente"
-  para todo lo que cuelga de un contribuyente.
+### Added
+- `/[locale]/(app)/[taxpayerId]/editar` — taxpayer editing (legal name,
+  trade name, regime, periodicity, activities); the same form used for
+  creation (`taxpayers/taxpayer-form.tsx`, now shared between
+  `taxpayers/new` and this screen).
+- `updateTaxpayer()` (`[taxpayerId]/actions.ts`) — recalculates
+  `activityFingerprint` the same way `createTaxpayer()` does; a
+  duplicate RUC returns `RUC_IN_USE`, excluding the taxpayer itself from
+  the check.
+- `updatePeriodStatus()` and `deletePeriod()`
+  (`[taxpayerId]/periodos/actions.ts`): manual `DRAFT ↔ UNDER_REVIEW`
+  transition with an event in `classification_events` (ADR-013), and
+  deleting a period only if it's in `DRAFT` and has no vouchers loaded.
+- `src/app/[locale]/(app)/layout.tsx` — a persistent menu (app name +
+  logout) across the whole authenticated application. No shared layout
+  existed before this; every screen built its own header.
+- `src/app/[locale]/(app)/[taxpayerId]/layout.tsx` — a secondary strip
+  with the legal name and links to "Periods" / "Edit taxpayer" for
+  everything hanging off a taxpayer.
 
-### Cambiado
-- `src/components/logout-button.tsx` — reubicado desde
-  `taxpayers/logout-button.tsx`; ahora lo usa el layout de la app, no la
-  pantalla de lista de contribuyentes.
-- Botón "Reabrir período" agregado a `predeclaracion-client.tsx`: la
-  función `reopenPeriod()` existía desde el bloqueo de período
-  (entrada del 2026-10-02 de este changelog) pero ningún botón la
-  llamaba.
-- `taxpayers/page.tsx` y `[taxpayerId]/periodos/page.tsx` perdieron sus
-  encabezados ad hoc (título + logout, o enlace de vuelta con la razón
-  social) — ese rol lo cubren los dos layouts nuevos.
+### Changed
+- `src/components/logout-button.tsx` — relocated from
+  `taxpayers/logout-button.tsx`; now used by the app layout, not the
+  taxpayer list screen.
+- "Reopen period" button added to `predeclaracion-client.tsx`: the
+  `reopenPeriod()` function had existed since the period lock (the
+  2026-10-02 entry in this changelog) but no button called it.
+- `taxpayers/page.tsx` and `[taxpayerId]/periodos/page.tsx` lost their
+  ad hoc headers (title + logout, or a back link with the legal name) —
+  the two new layouts cover that role now.
 
-### Hallazgo (sin cambio de código)
-- Verificando `updatePeriodStatus()`/`deletePeriod()` contra la base
-  real, un período con al menos un evento en `classification_events`
-  resultó imborrable incluso con el rol superusuario de Postgres — no es
-  RLS (que el superusuario ignora), es el disparador
-  `reject_classification_event_mutation()`
-  (`prisma/migrations/20260930113100_add_rls/migration.sql`), que
-  rechaza `DELETE`/`UPDATE` sobre esa tabla sin excepción. La bitácora es
-  append-only de verdad. Documentado en `TROUBLESHOOTING.md`: para datos
-  de prueba descartables, evitar transiciones de estado que generen un
-  evento si hace falta poder limpiarlos después.
+### Finding (no code change)
+- While verifying `updatePeriodStatus()`/`deletePeriod()` against the
+  real database, a period with at least one event in
+  `classification_events` turned out to be undeletable even with
+  Postgres's superuser role — this isn't RLS (which the superuser
+  bypasses), it's the trigger `reject_classification_event_mutation()`
+  (`prisma/migrations/20260930113100_add_rls/migration.sql`), which
+  rejects `DELETE`/`UPDATE` on that table with no exception. The audit
+  log really is append-only. Documented in `TROUBLESHOOTING.md`: for
+  disposable test data, avoid status transitions that generate an event
+  if you need to be able to clean them up afterward.
 
-## [2026-10-04] Barra de pasos del período: navegación completa adelante y atrás
+## [2026-10-04] Period step bar: full forward and back navigation
 
-### Corregido
-- **La raíz de un período no tenía ningún enlace hacia ingesta, ventas o
-  conciliación.** Una vez creado un período, esas tres pantallas solo eran
-  alcanzables escribiendo la URL a mano — exactamente lo que esta serie de
-  cambios se propuso eliminar. Cada una de las cuatro pantallas del período
-  tampoco tenía forma de saltar a otra que no fuera "un paso atrás": el
-  único enlace era "← Volver" a la raíz.
+### Fixed
+- **A period's root screen had no link to ingestion, sales, or
+  reconciliation.** Once a period was created, those three screens were
+  only reachable by typing the URL by hand — exactly what this series of
+  changes set out to eliminate. None of the four period screens had a
+  way to jump to another one besides "one step back" either: the only
+  link was "← Back" to the root.
 
-### Agregado
-- `period-step-nav.tsx` — barra de pestañas con los cuatro pasos del
-  período (Ingesta, Ventas emitidas, Conciliación, Pre-declaración) en
-  orden, el actual resaltado, cada uno enlazado directo a los otros tres.
-  Montada en las cuatro pantallas (`ingesta/page.tsx`, `ventas/page.tsx`,
-  `conciliacion/page.tsx`, la raíz del período), reemplazando el enlace
-  único "← Volver" de cada una.
-- Namespace `PeriodNav` en `messages/es.json` con las cuatro etiquetas
-  cortas de la barra.
+### Added
+- `period-step-nav.tsx` — a tab bar with the period's four steps
+  (Ingestion, Issued sales, Reconciliation, Pre-filing) in order, the
+  current one highlighted, each linked directly to the other three.
+  Mounted on the four screens (`ingesta/page.tsx`, `ventas/page.tsx`,
+  `conciliacion/page.tsx`, the period's root), replacing each one's
+  single "← Back" link.
+- `PeriodNav` namespace in `messages/es.json` with the bar's four short
+  labels.
 
-## [2026-10-04] Mes del período desalineado; menú lateral; módulo de administración
+## [2026-10-04] Misaligned period month; sidebar menu; administration module
 
-### Corregido
-- **Un período creado como agosto se mostraba como julio.** `TaxPeriod.periodStart`
-  es `@db.Date`; Prisma lo lee de vuelta como medianoche UTC. Tanto la
-  pantalla de períodos (`periodos-client.tsx`) como la tabla de ventas
-  (`ventas-table.tsx`, para `issueDate`) leían esa fecha con los getters
-  de hora **local** (`getMonth`/`getFullYear`/`toLocaleDateString` sin
-  huso fijo) — en cualquier zona detrás de UTC (Ecuador, UTC-5), la
-  medianoche UTC del día 1 cae la noche anterior en hora local, y el mes
-  mostrado retrocedía uno. Corregido a `getUTCMonth`/`getUTCFullYear` y
+### Fixed
+- **A period created as August displayed as July.**
+  `TaxPeriod.periodStart` is `@db.Date`; Prisma reads it back as UTC
+  midnight. Both the periods screen (`periodos-client.tsx`) and the
+  sales table (`ventas-table.tsx`, for `issueDate`) were reading that
+  date with **local**-time getters
+  (`getMonth`/`getFullYear`/`toLocaleDateString` with no fixed
+  timezone) — in any timezone behind UTC (Ecuador, UTC-5), UTC midnight
+  on day 1 falls on the previous night in local time, and the displayed
+  month rolled back one. Fixed to `getUTCMonth`/`getUTCFullYear` and
   `toLocaleDateString(locale, { timeZone: 'UTC' })`. `createPeriod()`
-  también pasó a construir `periodStart`/`periodEnd` con `Date.UTC(...)`
-  en vez de `new Date(year, month-1, 1)`, para no depender de la zona del
-  proceso que corre el servidor. Verificado en esta misma máquina
-  (`America/Guayaquil`, UTC-5, la condición real que causaba el error):
-  un período de agosto 2026 creado con la lógica corregida se renderiza
-  como "Agosto 2026" en la pantalla real.
+  also switched to building `periodStart`/`periodEnd` with
+  `Date.UTC(...)` instead of `new Date(year, month-1, 1)`, so it doesn't
+  depend on the timezone of the process running the server. Verified on
+  this same machine (`America/Guayaquil`, UTC-5, the real condition that
+  caused the bug): an August 2026 period created with the fixed logic
+  renders as "Agosto 2026" on the real screen.
 
-### Agregado
-- **Menú lateral persistente** (`src/components/app-sidebar.tsx`,
-  montado por `(app)/layout.tsx`): "Mis contribuyentes" siempre,
-  "Administración" solo para `role = ADMIN`. Siempre visible en
-  escritorio; panel deslizante con hamburguesa en móvil. Reemplaza el
-  header de una sola línea que ya existía — ese header en sí ya
-  renderizaba correctamente (se confirmó con una sesión real contra el
-  build existente); el ajuste es de prominencia e información, no de un
-  menú que faltara en el código.
-- **Modales** (`src/components/ui/dialog.tsx`, primer uso en el
-  proyecto, envoltorio de `radix-ui`): crear período, crear versión de
-  formulario, agregar casillero y cargar tasa de IVA pasaron de
-  formularios inline a modales.
-- **Módulo de administración** (`/admin/formularios`, `/admin/tasas`,
-  ADR-015): el admin sube un PDF (solo para su `sha256` — no hay
-  extracción automática del texto todavía, cada casillero se ingresa a
-  mano), publica versiones del formulario, y carga tasas de IVA que
-  exigen fuente y fecha de verificación antes de guardarse. `asAdmin()`
-  tenía meses sin usarse en ningún punto de `src/app` — esta es su
-  primera pantalla real.
-- `requireAdmin()` (`src/lib/session.ts`): vuelve a consultar `users.role`
-  contra la base en cada llamada, no confía en el claim del JWT de
-  sesión (que puede seguir diciendo `ADMIN` después de que alguien
-  pierda el rol, mientras el token no expire).
-- `scripts/seed-admin-user.ts` + `npm run seed:admin`: crea o promueve
-  una cuenta a `ADMIN`.
-- `TaxRate.source`/`verifiedAt`/`createdBy` (migración
-  `add_tax_rate_source`): el esquema no tenía dónde registrar de dónde
-  salía una tasa cargada, aunque CLAUDE.md ya exigía esa trazabilidad.
-  `/admin/tasas` no deja enviar el formulario sin ambos campos.
+### Added
+- **Persistent sidebar menu** (`src/components/app-sidebar.tsx`, mounted
+  by `(app)/layout.tsx`): "My taxpayers" always, "Administration" only
+  for `role = ADMIN`. Always visible on desktop; sliding panel with a
+  hamburger on mobile. Replaces the single-line header that already
+  existed — that header itself already rendered correctly (confirmed
+  with a real session against the existing build); the change is about
+  prominence and information, not a menu missing from the code.
+- **Modals** (`src/components/ui/dialog.tsx`, first use in the project,
+  a wrapper around `radix-ui`): creating a period, creating a form
+  version, adding a field, and loading a VAT rate all moved from inline
+  forms to modals.
+- **Administration module** (`/admin/formularios`, `/admin/tasas`,
+  ADR-015): the admin uploads a PDF (only for its `sha256` — there's no
+  automatic text extraction yet, every field is entered by hand),
+  publishes form versions, and loads VAT rates that require a source
+  and verification date before saving. `asAdmin()` had gone unused
+  anywhere in `src/app` for months — this is its first real screen.
+- `requireAdmin()` (`src/lib/session.ts`): re-queries `users.role`
+  against the database on every call, doesn't trust the session JWT's
+  claim (which can keep saying `ADMIN` after someone loses the role, as
+  long as the token hasn't expired).
+- `scripts/seed-admin-user.ts` + `npm run seed:admin`: creates or
+  promotes an account to `ADMIN`.
+- `TaxRate.source`/`verifiedAt`/`createdBy` (migration
+  `add_tax_rate_source`): the schema had nowhere to record where a
+  loaded rate came from, even though CLAUDE.md already required that
+  traceability. `/admin/tasas` won't let the form submit without both
+  fields.
 
-### Sin cambio (deliberado)
-- **Ninguna tasa de IVA quedó cargada.** Ambas filas de
-  [`docs/tax/tasas-iva.md`](docs/tax/tasas-iva.md) siguen `[VERIFICAR]` —
-  CLAUDE.md prohíbe completar un `[VERIFICAR]` de memoria, así que
-  `/admin/tasas` se entrega vacía a propósito.
-- **`result_mappings` sigue sin calcularse.** La cascada de 4 niveles de
-  ADR-015 no está implementada; publicar un formulario deja sus
-  `form_fields` listos pero nada los conecta todavía con las claves de
-  resultado del dominio.
+### No change (deliberate)
+- **No VAT rate ended up loaded.** Both rows in
+  [`docs/tax/tasas-iva.md`](docs/tax/tasas-iva.md) remain `[VERIFICAR]`
+  — CLAUDE.md forbids filling in a `[VERIFICAR]` from memory, so
+  `/admin/tasas` ships empty on purpose.
+- **`result_mappings` still isn't calculated.** ADR-015's 4-tier cascade
+  isn't implemented; publishing a form leaves its `form_fields` ready
+  but nothing connects them yet to the domain's result keys.
 
-## [2026-10-04] Extracción automática del PDF del formulario
+## [2026-10-04] Automatic extraction of the form's PDF
 
-### Agregado
-- `src/services/forms/pdf-field-extractor.ts` — `extractCandidateFields()`,
-  pura (ADR-001): heurística de texto plano sobre lo que `pdf-parse`
-  extrae de la capa de texto del PDF. Agrupa corridas de 1 a 3 pares
-  código-valor consecutivos y los asigna a `SINGLE` / `GROSS+NET` /
-  `GROSS+NET+TAX` según la posición, siguiendo el orden fijo de columnas
-  del formulario ("VALOR BRUTO · VALOR NETO · IMPUESTO GENERADO").
-  Verificada contra el PDF de muestra real: los 10 códigos ya
-  documentados en [`formulario-104.md`](docs/tax/formulario-104.md)
-  (401/411/421, 500/510/520, 502/512/522, 563) salen con el código y el
-  tipo de columna correctos.
-- `createFormVersionDraft()` ahora corre esa extracción sobre el PDF
-  subido y precarga los `form_fields` candidatos del borrador —
-  `addFormField()`/`removeFormField()` siguen disponibles para corregir
-  cualquier fila antes de publicar, que es obligatorio según ADR-015 sin
-  importar qué tan buena sea la extracción.
-- Dependencia nueva: `pdf-parse` (envuelve `pdfjs-dist`, extracción de
-  texto puro en Node).
+### Added
+- `src/services/forms/pdf-field-extractor.ts` —
+  `extractCandidateFields()`, pure (ADR-001): plain-text heuristics over
+  what `pdf-parse` extracts from the PDF's text layer. Groups runs of 1
+  to 3 consecutive code-value pairs and assigns them to `SINGLE` /
+  `GROSS+NET` / `GROSS+NET+TAX` based on position, following the form's
+  fixed column order ("VALOR BRUTO · VALOR NETO · IMPUESTO GENERADO").
+  Verified against the real sample PDF: the 10 codes already documented
+  in [`formulario-104.md`](docs/tax/formulario-104.md) (401/411/421,
+  500/510/520, 502/512/522, 563) come out with the correct code and
+  column type.
+- `createFormVersionDraft()` now runs that extraction over the uploaded
+  PDF and preloads the draft's candidate `form_fields` —
+  `addFormField()`/`removeFormField()` remain available to correct any
+  row before publishing, which ADR-015 requires regardless of how good
+  the extraction is.
+- New dependency: `pdf-parse` (wraps `pdfjs-dist`, pure text extraction
+  in Node).
 
-### Corregido (antes de llegar a un commit)
-- La primera versión de la ventana de búsqueda del nombre de cada campo
-  tomaba **todo el texto desde el campo anterior**, sin límite. Para la
-  primera fila de la página 1 eso incluía el bloque de cabecera que trae
-  la identidad del contribuyente (RUC, razón social) — en una prueba
-  real contra el PDF de muestra, ese nombre y RUC terminaron escritos en
-  `form_fields.label` antes de que el error se detectara y la fila de
-  prueba se borrara de la base. Corregido para tomar como máximo las 2
-  líneas inmediatamente anteriores a cada código, más una lista
-  explícita de líneas de cabecera a ignorar (`Identificación:`, `Razón
-  Social`, `CÓDIGO VERIFICADOR`, etc.) — nunca se confía en que el PDF no
-  vuelva a traer algo parecido más adelante.
+### Fixed (before reaching a commit)
+- The first version of each field's name-search window took **all the
+  text from the previous field onward**, with no limit. For the first
+  row on page 1 that included the header block carrying the taxpayer's
+  identity (RUC, legal name) — in a real test against the sample PDF,
+  that name and RUC ended up written into `form_fields.label` before
+  the bug was caught and the test row deleted from the database. Fixed
+  to take at most the 2 lines immediately preceding each code, plus an
+  explicit list of header lines to ignore (`Identificación:`, `Razón
+  Social`, `CÓDIGO VERIFICADOR`, etc.) — it's never trusted that the PDF
+  won't bring something similar again later on.
 
-### Sin cambio (deliberado)
-- La extracción sigue siendo heurística de texto plano, no usa la
-  posición real de cada bloque de texto en la página. Fórmulas impresas
-  dentro de una celda (ej. "482-484", "x 563") pueden generar una fila
-  con el código o la columna equivocados; líneas envueltas en dos
-  renglones pueden perder la primera mitad del nombre. Es exactamente el
-  tipo de error que la revisión obligatoria del admin existe para
-  atrapar — ver `NEXT_STEPS.md` para la alternativa basada en posición.
+### No change (deliberate)
+- Extraction is still plain-text heuristics; it doesn't use each text
+  block's real position on the page. Formulas printed inside a cell
+  (e.g. "482-484", "x 563") can produce a row with the wrong code or
+  column; lines wrapped across two rows can lose the first half of the
+  name. This is exactly the kind of error the admin's mandatory review
+  exists to catch — see `NEXT_STEPS.md` for the position-based
+  alternative.
 
-## [2026-10-04] Rediseño de tarjetas, barra superior con iconos, y un wizard para períodos vacíos
+## [2026-10-04] Card redesign, icon top bar, and a wizard for empty periods
 
-### Agregado
-- **`PeriodOverview`** (`period-overview.tsx`): cuatro tarjetas grandes
-  con los pasos del período (Ingesta, Ventas, Conciliación,
-  Pre-declaración), la primera marcada "empezar aquí". `page.tsx` la
-  muestra en vez de `PreDeclaracionClient` cuando el período no tiene
-  ningún comprobante todavía — antes, un período recién creado caía
-  directo en una vista de resultados vacíos con el factor bloqueado, que
-  se leía como roto, no como vacío.
-- Tarjetas de `/taxpayers` y `/[taxpayerId]/periodos` rediseñadas: grilla
-  de 2 columnas, ícono junto al nombre (`Building2`/`Calendar`), RUC/
-  régimen/periodicidad como `Badge` en vez de texto plano, y botones de
-  icono (`SquarePen` editar, `Trash2` eliminar) en vez de enlaces de
-  texto. El nombre/ícono principal sigue siendo un `<Link>`; los
-  controles secundarios son hermanos suyos, nunca anidados dentro (un
-  `<button>` dentro de un `<a>` es HTML inválido).
-- `[taxpayerId]/layout.tsx`: la franja superior pasó de enlaces de texto
-  a botones de icono (mismo lenguaje visual que las tarjetas), con
-  `bg-card` + sombra en vez del `bg-muted` plano anterior.
+### Added
+- **`PeriodOverview`** (`period-overview.tsx`): four large cards with
+  the period's steps (Ingestion, Sales, Reconciliation, Pre-filing), the
+  first one marked "start here". `page.tsx` shows it instead of
+  `PreDeclaracionClient` when the period has no vouchers yet —
+  previously, a freshly created period landed straight on an empty
+  results view with the factor blocked, which read as broken rather
+  than empty.
+- Cards on `/taxpayers` and `/[taxpayerId]/periodos` redesigned: a
+  2-column grid, an icon next to the name (`Building2`/`Calendar`),
+  RUC/regime/periodicity as a `Badge` instead of plain text, and icon
+  buttons (`SquarePen` edit, `Trash2` delete) instead of text links. The
+  main name/icon is still a `<Link>`; the secondary controls are its
+  siblings, never nested inside it (a `<button>` inside an `<a>` is
+  invalid HTML).
+- `[taxpayerId]/layout.tsx`: the top strip moved from text links to
+  icon buttons (the same visual language as the cards), with `bg-card`
+  + shadow instead of the previous flat `bg-muted`.
 
-### Sin cambio
-- El alta/edición de contribuyente sigue en página completa, no modal —
-  tiene demasiados campos (actividades económicas de largo variable)
-  para un diálogo.
+### No change
+- Taxpayer creation/editing remains a full page, not a modal — it has
+  too many fields (variable-length economic activities) for a dialog.

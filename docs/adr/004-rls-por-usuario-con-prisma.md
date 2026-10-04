@@ -1,51 +1,52 @@
-# ADR-004: Row-Level Security por usuario con Prisma
+# ADR-004: Row-Level Security per user with Prisma
 
-> **Actualización (2026-09-30):** el ejemplo de política de este ADR usa
-> `NULLIF(current_setting(...), '') IS NULL` como bypass de administrador —
-> es decir, cualquier consulta donde la variable de sesión simplemente **no
-> esté fijada** pasa sin filtro. Implementado tal cual, eso hace indistinguible
-> una llamada deliberada a `asAdmin()` de una consulta que alguien olvidó
-> envolver en `withUser()` — exactamente el fallo que la regla dura #2 de
-> `CLAUDE.md` prohíbe. Se corrigió: `asAdmin()` fija un id centinela explícito
-> (`00000000-0000-0000-0000-000000000000`, imposible para un usuario real
-> porque los ids reales salen de `uuidv7()`), nunca `RESET`. Una variable sin
-> fijar ahora falla cerrado — no ve nada — en vez de fallar abierto. El resto
-> del ADR no cambia; ver `prisma/migrations/*_add_rls` y `src/lib/db.ts` para
-> la implementación vigente.
+> **Update (2026-09-30):** this ADR's policy example uses
+> `NULLIF(current_setting(...), '') IS NULL` as the admin bypass — meaning
+> any query where the session variable simply **isn't set** passes through
+> unfiltered. Implemented as written, that makes a deliberate call to
+> `asAdmin()` indistinguishable from a query someone forgot to wrap in
+> `withUser()` — exactly the failure hard rule #2 in `CLAUDE.md` forbids.
+> This was fixed: `asAdmin()` now sets an explicit sentinel id
+> (`00000000-0000-0000-0000-000000000000`, impossible for a real user
+> because real ids come from `uuidv7()`), never `RESET`. An unset variable
+> now fails closed — it sees nothing — instead of failing open. The rest of
+> the ADR is unchanged; see `prisma/migrations/*_add_rls` and
+> `src/lib/db.ts` for the current implementation.
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-El aislamiento entre contribuyentes hoy dependería enteramente de que cada consulta
-incluya su filtro. Una sola consulta que olvide el `WHERE` expone la contabilidad de
-un cliente a otro — el peor fallo posible para este producto.
+Isolation between taxpayers today would depend entirely on every query
+including its filter. A single query that forgets the `WHERE` exposes one
+client's accounting to another — the worst possible failure for this
+product.
 
-`comprobify` ya resolvió esto en PostgreSQL plano
-(`comprobify/docs/adr/012-postgresql-row-level-security.md`): una variable de
-configuración transaccional (`set_config('app.current_issuer_id', $1, true)`)
-leída por las políticas, con `FORCE ROW LEVEL SECURITY` para que apliquen también
-al dueño de la tabla.
+`comprobify` already solved this on plain PostgreSQL
+(`comprobify/docs/adr/012-postgresql-row-level-security.md`): a
+transactional configuration variable (`set_config('app.current_issuer_id',
+$1, true)`) read by the policies, with `FORCE ROW LEVEL SECURITY` so they
+also apply to the table owner.
 
-La diferencia aquí es el ORM. `comprobify` usa `pg` crudo y controla cada
-transacción. Prisma mantiene un pool y reutiliza conexiones: **una variable de
-sesión fijada en una consulta puede filtrarse a la siguiente operación de otro
-usuario.**
+The difference here is the ORM. `comprobify` uses raw `pg` and controls
+every transaction. Prisma maintains a pool and reuses connections: **a
+session variable set in one query can leak into the next operation from a
+different user.**
 
-## Decisión
+## Decision
 
-**RLS sobre `app.current_user_id`, fijada con `SET LOCAL` dentro de una transacción
-interactiva de Prisma**, nunca a nivel de sesión.
+**RLS on `app.current_user_id`, set with `SET LOCAL` inside an interactive
+Prisma transaction**, never at the session level.
 
-Todo acceso a datos de contribuyentes pasa por un único envoltorio, algo como
-`withUser(userId, fn)`, que abre transacción, fija la variable y ejecuta. No se
-consulta una tabla protegida fuera de ese envoltorio.
+All access to taxpayer data goes through a single wrapper, something like
+`withUser(userId, fn)`, that opens a transaction, sets the variable, and
+executes. No protected table is queried outside that wrapper.
 
-Política para tablas con vínculo directo al usuario:
+Policy for tables with a direct link to the user:
 
 ```sql
 ALTER TABLE taxpayers ENABLE ROW LEVEL SECURITY;
@@ -63,48 +64,48 @@ CREATE POLICY taxpayers_isolation ON taxpayers
   );
 ```
 
-Las tablas hijas (`invoices_received`, `tax_periods`, …) usan una subconsulta
-equivalente contra `taxpayers`.
+Child tables (`invoices_received`, `tax_periods`, …) use an equivalent
+subquery against `taxpayers`.
 
-**El bypass cuando la variable no está fijada es deliberado**, igual que en
-`comprobify`: hay rutas legítimamente sin usuario (migraciones, tareas
-administrativas, `/health`). Esas rutas se autentican por otros medios y no tocan
-datos de contribuyentes.
+**The bypass when the variable isn't set is deliberate**, just as in
+`comprobify`: there are routes that legitimately have no user (migrations,
+admin tasks, `/health`). Those routes authenticate by other means and don't
+touch taxpayer data.
 
-**El usuario de base de datos de la aplicación no puede ser superusuario.** Los
-superusuarios ignoran la RLS incondicionalmente, incluso con `FORCE`. Es un
-requisito operativo sin forma de imponerlo desde el código, y por eso está también
-en `GETTING_STARTED.md`.
+**The application's database user cannot be a superuser.** Superusers
+bypass RLS unconditionally, even with `FORCE`. This is an operational
+requirement with no way to enforce it from code, which is why it's also in
+`GETTING_STARTED.md`.
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- Defensa en profundidad: una consulta que olvide el filtro no devuelve datos ajenos.
-- Independiente del ORM. Si Prisma se reemplaza, las políticas siguen ahí.
-- La variable es transaccional: si la transacción falla, se revierte sola. No hay
-  riesgo de contexto filtrado al reusar la conexión del pool.
+### Positive
+- Defense in depth: a query that forgets the filter doesn't return someone
+  else's data.
+- ORM-independent. If Prisma is replaced, the policies are still there.
+- The variable is transactional: if the transaction fails, it rolls back on
+  its own. No risk of context leaking when a pooled connection is reused.
 
-### Negativas
-- **Toda lectura, incluso trivial, requiere una transacción.** Dos viajes extra
-  (`BEGIN` / `COMMIT`) por consulta suelta.
-- Es fácil equivocarse: llamar a `prisma.invoice.findMany()` directamente en vez de
-  pasar por el envoltorio compila y funciona — devuelve todo, sin filtrar. Requiere
-  una regla de lint o una revisión disciplinada.
-- Terreno nuevo para este conjunto de proyectos: `comprobify` hace RLS sin ORM,
-  `comprobify-web` usa ORM sin RLS. **Debe probarse con un test de integración
-  temprano** que verifique que el usuario A no ve los datos del usuario B, antes de
-  construir sobre esta base.
+### Negative
+- **Every read, even a trivial one, requires a transaction.** Two extra
+  round trips (`BEGIN` / `COMMIT`) per loose query.
+- Easy to get wrong: calling `prisma.invoice.findMany()` directly instead of
+  going through the wrapper compiles and runs — it returns everything,
+  unfiltered. Requires a lint rule or disciplined review.
+- New ground for this set of projects: `comprobify` does RLS without an
+  ORM, `comprobify-web` uses an ORM without RLS. **This must be verified
+  with an early integration test** confirming that user A never sees user
+  B's data, before building on this foundation.
 
-## Alternativas consideradas
+## Alternatives considered
 
-**Solo filtrado en la aplicación.** Sin sobrecarga, pero un solo defecto expone
-datos tributarios de terceros. Inaceptable para este producto.
+**Application-level filtering only.** No overhead, but a single bug exposes
+third-party tax data. Unacceptable for this product.
 
-**Un esquema de PostgreSQL por usuario.** Aislamiento fuerte, pero las migraciones
-se multiplican por el número de usuarios y el DDL se vuelve operativamente
-complejo.
+**One PostgreSQL schema per user.** Strong isolation, but migrations
+multiply by the number of users and the DDL becomes operationally complex.
 
-**RLS a nivel de sesión en lugar de transacción.** Evita las transacciones
-envolventes, pero con un pool de conexiones la variable sobrevive a la petición y
-se filtra a la siguiente. Peligroso precisamente en el escenario que la RLS busca
-prevenir.
+**Session-level RLS instead of transaction-level.** Avoids wrapping
+transactions, but with a connection pool the variable outlives the request
+and leaks into the next one. Dangerous precisely in the scenario RLS is
+meant to prevent.

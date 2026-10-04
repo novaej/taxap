@@ -52,17 +52,17 @@ export interface IngestionReport {
 // ============================================================================
 
 export const VOUCHER_TYPE_WHITELIST = new Set([
-  '01', // Factura
-  '02', // Nota de venta
-  '03', // Liquidación de compra
-  '04', // Nota de crédito
-  '05', // Nota de débito
-  '06', // Guía de remisión
-  '07', // Comprobante de retención
-  '08', // Comprobante de percepción
-  '09', // Retención (in-house)
-  '20', // Factura (domiciliada)
-  '21', // Nota de venta (domiciliada)
+  '01', // Invoice (Factura)
+  '02', // Sales note (Nota de venta)
+  '03', // Purchase settlement (Liquidación de compra)
+  '04', // Credit note (Nota de crédito)
+  '05', // Debit note (Nota de débito)
+  '06', // Waybill (Guía de remisión)
+  '07', // Withholding voucher (Comprobante de retención)
+  '08', // Perception voucher (Comprobante de percepción)
+  '09', // Withholding (in-house)
+  '20', // Invoice, home-delivered (Factura domiciliada)
+  '21', // Sales note, home-delivered (Nota de venta domiciliada)
   // ... others (01-79 per SRI)
 ]);
 

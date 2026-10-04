@@ -50,8 +50,8 @@ export interface InvoiceIssued {
 // ============================================================================
 
 export enum IvaCategoryEnum {
-  CREDIT = 'CREDIT', // 500: con derecho a crédito
-  COST_EXPENSE = 'COST_EXPENSE', // 502: sin derecho
+  CREDIT = 'CREDIT', // 500: with right to credit
+  COST_EXPENSE = 'COST_EXPENSE', // 502: no right to credit
   NOT_APPLICABLE = 'NOT_APPLICABLE', // IVA = 0
   UNCLASSIFIED = 'UNCLASSIFIED',
   NON_DEDUCTIBLE = 'NON_DEDUCTIBLE',
@@ -99,79 +99,79 @@ export interface ResultKey {
 export const RESULT_KEYS = {
   SALES_TAXED: {
     key: 'SALES_TAXED',
-    description: 'Ventas locales gravadas (bruto)',
+    description: 'Taxed local sales (gross)',
     columnPart: 'GROSS' as const,
     operation: 'SALE' as const,
     treatment: 'with IVA > 0',
   },
   SALES_ZERO_NO_CREDIT: {
     key: 'SALES_ZERO_NO_CREDIT',
-    description: 'Ventas locales 0% sin derecho a crédito (bruto)',
+    description: 'Local sales at 0% with no right to credit (gross)',
     columnPart: 'GROSS' as const,
     operation: 'SALE' as const,
     treatment: 'zero no credit',
   },
   SALES_ZERO_WITH_CREDIT: {
     key: 'SALES_ZERO_WITH_CREDIT',
-    description: 'Ventas locales 0% con derecho a crédito (bruto)',
+    description: 'Local sales at 0% with right to credit (gross)',
     columnPart: 'GROSS' as const,
     operation: 'SALE' as const,
     treatment: 'zero with credit',
   },
   EXPORT_GOODS: {
     key: 'EXPORT_GOODS',
-    description: 'Exportación de bienes (bruto)',
+    description: 'Export of goods (gross)',
     columnPart: 'GROSS' as const,
     operation: 'SALE' as const,
     treatment: 'export goods',
   },
   EXPORT_SERVICES: {
     key: 'EXPORT_SERVICES',
-    description: 'Exportación de servicios (bruto)',
+    description: 'Export of services (gross)',
     columnPart: 'GROSS' as const,
     operation: 'SALE' as const,
     treatment: 'export services',
   },
   SALES_NON_OBJECT_EXEMPT: {
     key: 'SALES_NON_OBJECT_EXEMPT',
-    description: 'Transferencias no objeto o exentas de IVA (bruto)',
+    description: 'Transfers not subject to or exempt from IVA (gross)',
     columnPart: 'GROSS' as const,
     operation: 'SALE' as const,
     treatment: 'non object or exempt',
   },
   PURCHASES_WITH_CREDIT: {
     key: 'PURCHASES_WITH_CREDIT',
-    description: 'Adquisiciones con derecho a crédito tributario (bruto)',
+    description: 'Purchases with right to tax credit (gross)',
     columnPart: 'GROSS' as const,
     operation: 'PURCHASE' as const,
     treatment: 'with credit',
   },
   PURCHASES_NO_CREDIT: {
     key: 'PURCHASES_NO_CREDIT',
-    description: 'Adquisiciones sin derecho a crédito tributario (bruto)',
+    description: 'Purchases with no right to tax credit (gross)',
     columnPart: 'GROSS' as const,
     operation: 'PURCHASE' as const,
     treatment: 'no credit',
   },
   PURCHASES_ZERO_VAT: {
     key: 'PURCHASES_ZERO_VAT',
-    description: 'Compras con IVA = 0 (informativo)',
+    description: 'Purchases with IVA = 0 (informational)',
     operation: 'PURCHASE' as const,
     treatment: 'zero vat',
   },
   PROPORTIONALITY_FACTOR: {
     key: 'PROPORTIONALITY_FACTOR',
-    description: 'Factor de proporcionalidad (4 decimales)',
+    description: 'Proportionality factor (4 decimals)',
     operation: 'FACTOR' as const,
   },
   CREDIT_APPLICABLE: {
     key: 'CREDIT_APPLICABLE',
-    description: 'Crédito tributario aplicable',
+    description: 'Applicable tax credit',
     operation: 'CREDIT' as const,
   },
   VAT_NOT_CREDITED: {
     key: 'VAT_NOT_CREDITED',
-    description: 'IVA no considerado como crédito por factor',
+    description: 'IVA not counted as credit due to the factor',
     operation: 'CREDIT' as const,
   },
 } as const;

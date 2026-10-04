@@ -1,111 +1,118 @@
-# Pendientes
+# Next steps
 
-Lo ya resuelto vive en [`CHANGELOG.md`](CHANGELOG.md), no aquí.
+What's already resolved lives in [`CHANGELOG.md`](CHANGELOG.md), not here.
 
-## Decisiones abiertas
+## Open decisions
 
-**Dónde desplegar.** DigitalOcean es la opción principal por experiencia previa
-(droplet + Docker + Caddy + Terraform + Cloudflare, patrón de
-`comprobify-web/docs/adr/008`). No se decide hasta tener algo que desplegar.
-Advertencia registrada de ese proyecto: **el droplet más barato se quedó corto
-para Next.js con Prisma.** Arrancar al menos un nivel arriba.
+**Where to deploy.** DigitalOcean is the leading option based on prior
+experience (droplet + Docker + Caddy + Terraform + Cloudflare, the pattern
+from `comprobify-web/docs/adr/008`). Not decided until there's something
+to deploy. A warning on record from that project: **the cheapest droplet
+fell short for Next.js with Prisma.** Start at least one tier up.
 
-**Almacenamiento de archivos originales.** Guardar los `.txt` cargados permite
-reprocesar sin pedirlos de nuevo. Filesystem en local; en producción, almacenamiento
-compatible con S3. Sin decidir si se guardan indefinidamente.
+**Storage of original files.** Keeping the uploaded `.txt` files allows
+reprocessing without asking for them again. Filesystem locally; in
+production, S3-compatible storage. Not yet decided whether they're kept
+indefinitely.
 
-**Términos y condiciones.** [ADR-014](docs/adr/014-caracter-asistivo-y-disclaimers.md)
-fija la postura de producto. El texto legal necesita revisión profesional antes de
-abrir a usuarios reales.
+**Terms and conditions.** [ADR-014](docs/adr/014-caracter-asistivo-y-disclaimers.md)
+sets the product stance. The legal text needs professional review before
+opening to real users.
 
-## Por construir
+## To build
 
-- [ ] **Mejorar la extracción automática del PDF del formulario**
-      (`src/services/forms/pdf-field-extractor.ts`, desde el 2026-10-04).
-      Es heurística de texto plano -- sin datos de posición/layout real
-      del PDF -- y se sabe que falla en líneas envueltas y en fórmulas
-      impresas dentro de la propia celda (ej. "482-484"). Funciona bien
-      para el caso común (nombre + código + bruto/neto/impuesto en una
-      sola línea) y el admin revisa/corrige el resto antes de publicar
-      (ADR-015), pero una extracción basada en la posición real de cada
-      bloque de texto (via `pdfjs-dist` directo, no solo su texto plano)
-      sería más precisa.
-- [ ] **Cálculo de `result_mappings`** (ADR-015, la cascada de 4 niveles:
-      versión anterior → coincidencia por atributos → IA → sin
-      casillero). Hoy un admin puede publicar un `form_version` con sus
-      `form_fields`, pero nada construye la relación resultado→casillero
-      todavía -- la pre-declaración sigue mostrando solo las claves del
-      dominio.
-- [ ] **Test de regresión de RLS.** Se ha verificado manualmente contra la
-      base real varias veces, pero no queda como artefacto reproducible
-      (`tests/rls/`, según `docs/guides/coding-guidelines.md`). Escribir uno
-      antes de tocar `src/lib/db.ts` de nuevo.
-- [ ] **Medir el paso de clasificación** con un período real y muchos
-      proveedores nuevos. Si no cabe en una petición HTTP, entra pg-boss
+- [ ] **Improve automatic extraction of the form's PDF**
+      (`src/services/forms/pdf-field-extractor.ts`, since 2026-10-04).
+      It's plain-text heuristics — no real position/layout data from the
+      PDF — and is known to fail on wrapped lines and on formulas printed
+      inside the cell itself (e.g. "482-484"). It works well for the
+      common case (name + code + gross/net/tax on a single line) and the
+      admin reviews/corrects the rest before publishing (ADR-015), but an
+      extraction based on each text block's real position (via
+      `pdfjs-dist` directly, not just its plain text) would be more
+      accurate.
+- [ ] **Calculation of `result_mappings`** (ADR-015, the 4-tier cascade:
+      prior version → attribute match → AI → no field). Today an admin
+      can publish a `form_version` with its `form_fields`, but nothing
+      builds the result→field relationship yet — the pre-filing still
+      only shows the domain's keys.
+- [ ] **RLS regression test.** It has been manually verified against the
+      real database several times, but it hasn't been left as a
+      reproducible artifact (`tests/rls/`, per
+      `docs/guides/coding-guidelines.md`). Write one before touching
+      `src/lib/db.ts` again.
+- [ ] **Measure the classification step** with a real period and many new
+      suppliers. If it doesn't fit in one HTTP request, pg-boss comes in
       ([ADR-011](docs/adr/011-ingesta-y-clasificacion-en-dos-pasos.md)).
 
-## Verificación normativa pendiente
+## Pending normative verification
 
-Nada de esto se resuelve con código — requiere archivos reales del SRI,
-revisar el portal, o confirmar una fecha de vigencia:
+None of this gets resolved with code — it requires real SRI files,
+checking the portal, or confirming an effective date:
 
-- [ ] **Completar `docs/tax/formato-archivos-sri.md`** con archivos que
-      incluyan notas de crédito, notas de débito y comprobantes de retención.
-- [ ] **Verificar y cargar `tax_rates`.** La pantalla (`/admin/tasas`)
-      existe desde el 2026-10-04 y no deja guardar nada sin fuente y
-      fecha de verificación -- falta la verificación en sí
-      (`docs/tax/tasas-iva.md`: ninguna tasa confirmada todavía).
-- [ ] **Verificar con el portal** si 563/564/565 y los totales (409/419/429,
-      509/519/529) los calcula el portal a partir de lo ingresado
-      ([`docs/tax/formulario-104.md`](docs/tax/formulario-104.md) → *Pendiente
-      de verificar*). Incluye qué espera el portal cuando el denominador del
-      factor es cero (el dominio ya bloquea ese caso con una razón explícita;
-      lo que falta es si el portal necesita algo tecleado de todas formas).
-- [ ] **Probar el emparejamiento contra el formulario real** antes de
-      construir sobre él: que cada resultado del MVP caiga en el casillero
-      esperado de [`formulario-104.md`](docs/tax/formulario-104.md). Es el
-      riesgo principal de
-      [ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md): un
-      valor correcto junto al casillero incorrecto.
-- [ ] **Sanitizar el PDF de muestra** para usarlo como fixture de pruebas del
-      parser ([ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md)).
-      El original trae datos personales y no se versiona.
-- [ ] **Verificar con un archivo real** si los comprobantes de retención
-      recibidos alimentan el casillero 609.
+- [ ] **Complete `docs/tax/formato-archivos-sri.md`** with files that
+      include credit notes, debit notes, and withholding vouchers.
+- [ ] **Verify and load `tax_rates`.** The screen (`/admin/tasas`) has
+      existed since 2026-10-04 and won't let anything be saved without a
+      source and verification date — the verification itself is still
+      missing (`docs/tax/tasas-iva.md`: no rate confirmed yet).
+- [ ] **Verify with the portal** whether 563/564/565 and the totals
+      (409/419/429, 509/519/529) are computed by the portal from what's
+      entered ([`docs/tax/formulario-104.md`](docs/tax/formulario-104.md)
+      → *Pending verification*). Includes what the portal expects when the
+      factor's denominator is zero (the domain already blocks that case
+      with an explicit reason; what's missing is whether the portal needs
+      something typed in regardless).
+- [ ] **Test the mapping against the real form** before building on top of
+      it: that every MVP result lands on the expected field from
+      [`formulario-104.md`](docs/tax/formulario-104.md). This is the main
+      risk of [ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md):
+      a correct value next to the wrong field.
+- [ ] **Sanitize the sample PDF** for use as a parser test fixture
+      ([ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md)). The
+      original carries personal data and isn't version-controlled.
+- [ ] **Verify with a real file** whether received withholding vouchers
+      feed into field 609.
 
-## Fuera del MVP
+## Out of MVP scope
 
-### Impuestos
-- **Impuesto a la Renta.** El modelo de gastos personales cambió: es una **rebaja**
-  calculada sobre canasta familiar básica y cargas, con más categorías que las dos
-  de la definición inicial. Requiere verificación normativa completa.
-- **Retenciones.**
-- **ATS.** Probablemente el mayor gancho comercial después del IVA: es trabajo
-  mensual doloroso y el modelo de datos ya contiene casi todo lo necesario.
+### Taxes
+- **Income Tax.** The personal-expense model has changed: it's now a
+  **reduction** calculated on the basic family basket and dependents, with
+  more categories than the original two in the initial definition.
+  Requires full normative verification.
+- **Withholdings.**
+- **ATS.** Probably the biggest commercial hook after VAT: it's painful
+  monthly work and the data model already contains almost everything
+  needed.
 
-### Producto
-- **Liquidación y saldos.** Casilleros 480–499 y 601–999: liquidación del mes, saldos de
-  crédito de meses anteriores (605 ← 615 del período previo), total a pagar. Requieren
-  un mecanismo de arrastre entre períodos o de ingreso manual.
-- **Compras con `IVA = 0` con casillero definitivo** (507, 508, 531, 532). Hoy solo hay
-  un total informativo con un casillero aproximado sugerido.
-- **Activos fijos** (402, 501…): el archivo del SRI no los distingue.
-- **IVA semestral.** Es otro formulario (probablemente el 104A `[VERIFICAR]`), con
-  casilleros propios. Hace falta una muestra para importar su definición
-  ([ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md)); la estructura ya
-  lo admite. Mientras tanto un contribuyente semestral puede registrarse, pero el MVP
-  no genera su pre-declaración.
-- Despachos con varios usuarios. La estructura ya lo soporta
-  ([ADR-003](docs/adr/003-usuario-como-tenant-con-tabla-de-union.md)); falta
-  interfaz de invitación y gestión de permisos.
-- Facturación y cobro de suscripciones.
-- Comparativa entre períodos, para detectar variaciones anómalas.
-- Exportación a Excel o PDF del borrador.
-- Inglés. `next-intl` está desde el inicio; falta `messages/en.json`.
+### Product
+- **Settlement and balances.** Fields 480–499 and 601–999: the month's
+  settlement, credit balances carried from prior months (605 ← 615 from
+  the previous period), total due. These require either a carry-forward
+  mechanism between periods or manual entry.
+- **`IVA = 0` purchases with a definitive field** (507, 508, 531, 532).
+  Today there's only an informational total with an approximate suggested
+  field.
+- **Fixed assets** (402, 501…): the SRI file doesn't distinguish them.
+- **Semiannual VAT.** It's a different form (probably Form 104A
+  `[VERIFICAR]`), with its own fields. A sample is needed to import its
+  definition ([ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md));
+  the structure already supports it. In the meantime a semiannual taxpayer
+  can register, but the MVP doesn't generate their pre-filing.
+- Firms with multiple users. The structure already supports this
+  ([ADR-003](docs/adr/003-usuario-como-tenant-con-tabla-de-union.md));
+  missing an invitation interface and permission management.
+- Subscription billing and payment collection.
+- Period-over-period comparison, to detect anomalous variations.
+- Excel or PDF export of the draft.
+- English. `next-intl` has been there from the start; `messages/en.json`
+  is missing.
 
-### Técnico
-- Ingesta de XML de comprobantes, que sí trae detalle de líneas. Convivirá con el
-  TXT a distinta precisión ([ADR-008](docs/adr/008-solo-totales-sin-detalle-de-lineas.md)).
-- Política de archivado de `classification_events`.
-- Alerta cuando un período usa una vigencia normativa vencida.
-- Bloqueo consultivo por período para evitar clasificación concurrente.
+### Technical
+- Ingestion of voucher XML, which does carry line-item detail. It will
+  coexist with the TXT at a different precision
+  ([ADR-008](docs/adr/008-solo-totales-sin-detalle-de-lineas.md)).
+- Archiving policy for `classification_events`.
+- Alert when a period uses an expired normative effective date.
+- Advisory per-period lock to prevent concurrent classification.

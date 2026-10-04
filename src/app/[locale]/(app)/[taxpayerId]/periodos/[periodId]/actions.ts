@@ -8,8 +8,8 @@ import type { ClassifiedInvoice } from '@/domain/iva';
 import { IvaCategoryEnum, SalesTreatmentEnum } from '@/domain/types';
 
 /**
- * Ejecuta el cálculo del dominio sobre los comprobantes del período y
- * guarda los resultados (ADR-015: el dominio no conoce casilleros).
+ * Runs the domain calculation over the period's vouchers and saves the
+ * results (ADR-015: the domain layer never knows about form fields).
  */
 export async function computePeriodResults(taxpayerId: string, periodId: string) {
   const userId = await getCurrentUserId();
@@ -65,10 +65,10 @@ export async function getPeriodResults(taxpayerId: string, periodId: string) {
 }
 
 /**
- * Cierre de período (ADR-013): fija locked_at. Un disparador en Postgres
- * rechaza toda modificación posterior de los comprobantes de este período
- * (migración `*_add_period_lock`) -- no depende de que la aplicación se
- * acuerde de revisarlo.
+ * Period close-out (ADR-013): sets locked_at. A Postgres trigger rejects
+ * any further modification of this period's vouchers (migration
+ * `*_add_period_lock`) -- it doesn't depend on the application remembering
+ * to check.
  */
 export async function lockPeriod(taxpayerId: string, periodId: string) {
   const userId = await getCurrentUserId();
@@ -87,7 +87,7 @@ export async function lockPeriod(taxpayerId: string, periodId: string) {
         newValue: 'FILED',
         actorType: 'USER',
         actorUserId: userId,
-        reason: 'Período marcado como declarado',
+        reason: 'Period marked as filed',
       },
     });
   });
@@ -95,8 +95,8 @@ export async function lockPeriod(taxpayerId: string, periodId: string) {
 }
 
 /**
- * Reapertura explícita (ADR-013): la reapertura en sí queda registrada,
- * no solo lo que se edite después.
+ * Explicit reopening (ADR-013): the reopening itself gets logged, not
+ * just whatever gets edited afterward.
  */
 export async function reopenPeriod(taxpayerId: string, periodId: string) {
   const userId = await getCurrentUserId();
@@ -115,7 +115,7 @@ export async function reopenPeriod(taxpayerId: string, periodId: string) {
         newValue: 'DRAFT',
         actorType: 'USER',
         actorUserId: userId,
-        reason: 'Período reabierto',
+        reason: 'Period reopened',
       },
     });
   });

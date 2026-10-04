@@ -1,20 +1,20 @@
 /**
  * Access Key (Clave de Acceso) validation and decomposition.
  * 49 digits. Verified against real access keys in
- * docs/tax/formato-archivos-sri.md -> "La clave de acceso" (2026-09-20).
- * ADR-009: Clave de acceso como clave de deduplicación e integridad
+ * docs/tax/formato-archivos-sri.md -> "The access key" (2026-09-20).
+ * ADR-009: Access key as the deduplication and integrity key
  *
  * Position | Length | Field
- *    0–7   |   8    | Fecha de emisión DDMMAAAA
- *    8–9   |   2    | Tipo de comprobante
- *   10–22  |   13   | RUC del emisor
- *    23    |   1    | Ambiente (1 pruebas, 2 producción)
- *   24–26  |   3    | Establecimiento
- *   27–29  |   3    | Punto de emisión
- *   30–38  |   9    | Secuencial
- *   39–46  |   8    | Código numérico
- *    47    |   1    | Tipo de emisión
- *    48    |   1    | Dígito verificador
+ *    0–7   |   8    | Emission date DDMMYYYY
+ *    8–9   |   2    | Voucher type
+ *   10–22  |   13   | Issuer's RUC
+ *    23    |   1    | Environment (1 test, 2 production)
+ *   24–26  |   3    | Establishment
+ *   27–29  |   3    | Emission point
+ *   30–38  |   9    | Sequential number
+ *   39–46  |   8    | Numeric code
+ *    47    |   1    | Emission type
+ *    48    |   1    | Check digit
  */
 
 import { AccessKeyInvalidError } from '../types';
@@ -196,7 +196,7 @@ export function verifyAccessKeyConsistency(
     );
   }
 
-  // Serie: "EEE-PPP-SSSSSSSSS" -> establecimiento + punto de emisión + secuencial
+  // Serie: "EEE-PPP-SSSSSSSSS" -> establishment + emission point + sequential number
   const serieParts = series.split('-');
   if (serieParts.length !== 3) {
     throw new AccessKeyInvalidError(

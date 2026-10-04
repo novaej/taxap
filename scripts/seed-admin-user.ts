@@ -1,13 +1,14 @@
 /**
- * Crea (o promueve a ADMIN) la cuenta que va a administrar el sistema:
- * subir/publicar el formulario 104 y cargar tasas de IVA verificadas. El
- * admin es del sistema, no de un contribuyente (ADR-015) -- no ve datos de
- * contribuyentes ni interviene en resultados.
+ * Creates (or promotes to ADMIN) the account that will administer the
+ * system: upload/publish Form 104 and load verified IVA rates. The admin
+ * belongs to the system, not to a taxpayer (ADR-015) -- they never see
+ * taxpayer data or intervene in results.
  *
- * Uso:
- *   npm run seed:admin -- correo@ejemplo.com "contraseña-segura"
+ * Usage:
+ *   npm run seed:admin -- email@example.com "a-strong-password"
  *
- * Si la cuenta ya existe, solo la promueve a ADMIN (no toca su contraseña).
+ * If the account already exists, this only promotes it to ADMIN (its
+ * password is left untouched).
  */
 
 import bcrypt from 'bcryptjs';
@@ -18,7 +19,7 @@ async function main() {
   const password = process.argv[3];
 
   if (!email) {
-    console.error('Uso: npm run seed:admin -- correo@ejemplo.com "contraseña-segura"');
+    console.error('Usage: npm run seed:admin -- email@example.com "a-strong-password"');
     process.exit(1);
   }
 
@@ -26,16 +27,16 @@ async function main() {
 
   if (existing) {
     if (existing.role === 'ADMIN') {
-      console.log(`${email} ya es ADMIN.`);
+      console.log(`${email} is already ADMIN.`);
       return;
     }
     await prisma.user.update({ where: { email }, data: { role: 'ADMIN' } });
-    console.log(`${email} promovido a ADMIN.`);
+    console.log(`${email} promoted to ADMIN.`);
     return;
   }
 
   if (!password || password.length < 8) {
-    console.error('La cuenta no existe todavía: hace falta una contraseña de al menos 8 caracteres para crearla.');
+    console.error('That account does not exist yet: a password of at least 8 characters is required to create it.');
     process.exit(1);
   }
 
@@ -43,7 +44,7 @@ async function main() {
   const user = await prisma.user.create({
     data: { email, passwordHash, role: 'ADMIN' },
   });
-  console.log(`Cuenta ADMIN creada: ${user.email}`);
+  console.log(`ADMIN account created: ${user.email}`);
 }
 
 main()

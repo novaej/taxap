@@ -9,9 +9,9 @@ export interface RegisterResult {
 }
 
 /**
- * Alta de usuario. No crea contribuyente -- esa pantalla está deferida a
- * propósito (NEXT_STEPS.md -> Por construir). `users` no tiene RLS, así que
- * esto corre contra `prisma` directo.
+ * User sign-up. Doesn't create a taxpayer -- that's a separate step on
+ * `/taxpayers/new` once the user is logged in. `users` has no RLS, so
+ * this runs directly against `prisma`.
  */
 export async function registerUser(
   email: string,

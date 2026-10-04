@@ -1,49 +1,52 @@
-# Tasas de IVA
+# VAT rates
 
-Alimenta la tabla `tax_rates`. La tasa aplicable se resuelve por la **fecha de
-emisión del comprobante**, nunca por la fecha actual
+Feeds the `tax_rates` table. The applicable rate is resolved by the
+**voucher's issue date**, never by the current date
 ([ADR-012](../adr/012-tasas-y-casilleros-como-datos-con-vigencia.md)).
 
-## Tabla
+## Table
 
-| Tasa | Vigente desde | Vigente hasta | Fuente | Verificado |
+| Rate | Effective from | Effective until | Source | Verified |
 |---|---|---|---|---|
 | 15% | `[VERIFICAR]` 2024 | — | `[VERIFICAR]` | ❌ |
 | 12% | `[VERIFICAR]` | `[VERIFICAR]` 2024 | `[VERIFICAR]` | ❌ |
 
-> **Ninguna fila está verificada.** Antes de cargar esta tabla al sistema hay que
-> confirmar las fechas exactas de vigencia contra la normativa y registrar la
-> fuente. Hasta entonces el sistema no debe calcular períodos anteriores a la
-> vigencia confirmada de la tasa actual.
+> **No row is verified.** Before loading this table into the system, the
+> exact effective dates must be confirmed against the regulation and the
+> source recorded. Until then, the system must not calculate periods
+> prior to the confirmed effective date of the current rate.
 
-## Evidencia disponible
+## Available evidence
 
-De la factura real analizada en
+From the real invoice analyzed in
 [`formato-archivos-sri.md`](formato-archivos-sri.md):
 
 ```
 VALOR_SIN_IMPUESTOS = 29.99    IVA = 4.50
-4.50 / 29.99 = 15.005%    →    tasa 15%, con redondeo
+4.50 / 29.99 = 15.005%    →    15% rate, with rounding
 ```
 
-Confirma que en agosto de 2026 la tasa es 15%. **No confirma desde cuándo.**
+Confirms that in August 2026 the rate is 15%. **It does not confirm
+since when.**
 
-## Por qué importa la vigencia
+## Why the effective date matters
 
-Con la tasa fija en el código, un comprobante de un período anterior a la reforma se
-calcula con la tasa equivocada **sin producir ningún error visible**. El sistema
-muestra un número y ese número está mal.
+With the rate hardcoded, a voucher from a period before the reform gets
+calculated with the wrong rate **without producing any visible error**.
+The system shows a number, and that number is wrong.
 
-Hace falta cuando:
-- El usuario corrige o reconstruye un período anterior.
-- Un comprobante llega con fecha de emisión antigua.
-- Una nota de crédito modifica una factura emitida bajo la tasa anterior.
+It matters when:
+- The user corrects or rebuilds an earlier period.
+- A voucher arrives with an old issue date.
+- A credit note modifies an invoice issued under the previous rate.
 
-## Tarifa cero, exento y no objeto
+## Zero rate, exempt, and non-object
 
-Los archivos del SRI traen `IVA = 0` sin distinguir entre los tres casos. No se
-modela esa distinción porque **la fuente no la contiene**
+SRI files carry `IVA = 0` without distinguishing between the three
+cases. That distinction isn't modeled because **the source doesn't
+contain it**
 ([ADR-008](../adr/008-solo-totales-sin-detalle-de-lineas.md)).
 
-Se agrupan en un bucket único sin decisión por comprobante. Si el formulario los
-separa, el usuario ajusta manualmente, y la interfaz lo advierte.
+They're grouped into a single bucket with no per-voucher decision. If
+the form separates them, the user adjusts manually, and the interface
+warns about it.

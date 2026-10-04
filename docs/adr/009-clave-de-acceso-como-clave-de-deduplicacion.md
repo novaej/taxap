@@ -1,79 +1,78 @@
-# ADR-009: La clave de acceso como clave de deduplicación e integridad
+# ADR-009: The access key as the deduplication and integrity key
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-El portal del SRI solo permite consultar comprobantes **por día**. Un período
-mensual requiere hasta 31 descargas, y un semestral muchas más. El usuario va a
-cargar decenas de archivos por período, con solapamientos y repeticiones casi
-garantizados.
+The SRI portal only allows querying vouchers **by day**. A monthly period
+requires up to 31 downloads, and a semiannual one many more. The user is
+going to upload dozens of files per period, with overlaps and repeats
+nearly guaranteed.
 
-Sin una clave de deduplicación confiable, la segunda carga duplica los totales y el
-producto pierde la confianza del usuario en su primer uso.
+Without a reliable deduplication key, the second upload duplicates the
+totals and the product loses the user's trust on their first use.
 
-Todos los comprobantes traen la **clave de acceso**, 49 dígitos que el SRI genera
-con una estructura fija:
+Every voucher carries the **access key**, 49 digits the SRI generates with
+a fixed structure:
 
 ```
-fecha(8) tipo(2) RUC(13) ambiente(1) serie(6) secuencial(9) código(8) emisión(1) verificador(1)
+date(8) type(2) RUC(13) environment(1) series(6) sequence(9) code(8) emission(1) check digit(1)
 ```
 
-Verificada contra dos comprobantes reales:
+Verified against two real vouchers:
 
 ```
 0108202601 1791287541001 2 001012 024304725 ...
-  01/08/26   RUC emisor      001-012  024304725
+  01/08/26   issuer RUC      001-012  024304725
 ```
 
-Los campos internos **coinciden con las demás columnas del archivo**: fecha de
-emisión, tipo de comprobante, RUC del emisor y serie.
+The internal fields **match the file's other columns**: emission date,
+voucher type, issuer RUC, and series.
 
-## Decisión
+## Decision
 
-**La clave de acceso cumple dos funciones.**
+**The access key serves two functions.**
 
-**1. Deduplicación.** Restricción única `(taxpayer_id, access_key)`. La ingesta
-inserta ignorando conflictos, así que recargar un archivo —o el mismo día en dos
-archivos distintos— no duplica nada. El usuario puede cargar los 31 archivos en
-cualquier orden y repetirlos sin consecuencias.
+**1. Deduplication.** Unique constraint `(taxpayer_id, access_key)`.
+Ingestion inserts while ignoring conflicts, so reloading a file — or the
+same day appearing in two different files — duplicates nothing. The user
+can upload the 31 files in any order and repeat them with no consequences.
 
-**2. Validación de integridad.** En cada fila se descompone la clave y se contrasta
-contra las demás columnas. Si no concuerdan, la fila se rechaza y se reporta: el
-archivo está corrupto o fue manipulado.
+**2. Integrity validation.** On each row, the key is decomposed and
+checked against the file's other columns. If they don't match, the row is
+rejected and reported: the file is corrupted or was tampered with.
 
-**Validación de pertenencia**, por caminos distintos según el archivo:
+**Ownership validation**, through different paths depending on the file:
 
-| Archivo | Cómo se valida el contribuyente |
+| File | How the taxpayer is validated |
 |---|---|
-| Comprobantes recibidos | `IDENTIFICACION_RECEPTOR` debe corresponder al contribuyente |
-| Comprobantes emitidos | El RUC **dentro de la clave de acceso** debe ser el del contribuyente |
+| Received vouchers | `IDENTIFICACION_RECEPTOR` must match the taxpayer |
+| Issued vouchers | The RUC **inside the access key** must be the taxpayer's |
 
-El archivo de emitidos no trae columna de identificación del emisor; la clave de
-acceso la suple. Si no coincide, se aborta la carga completa: el usuario subió el
-archivo de otro cliente, y detectarlo antes de contaminar el período es lo que
-importa.
+The issued-vouchers file carries no issuer-identification column; the
+access key supplies it. If it doesn't match, the whole upload is aborted:
+the user uploaded another client's file, and catching that before it
+contaminates the period is what matters.
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- La recarga es idempotente por construcción. La interfaz puede ofrecer "arrastre
-  todos sus archivos" sin ninguna advertencia.
-- Detección temprana de archivos corruptos o del cliente equivocado, antes de que
-  lleguen a un cálculo.
-- No hace falta inventar una clave natural compuesta ni confiar en el nombre del
-  archivo.
+### Positive
+- Reloading is idempotent by construction. The UI can offer "drop in all
+  your files" with no warning needed.
+- Early detection of corrupted files or the wrong client's file, before
+  they reach a calculation.
+- No need to invent a composite natural key or rely on the file name.
 
-### Negativas
-- Se asume que el SRI no reutiliza claves de acceso entre comprobantes. Es el
-  diseño del sistema, pero es una dependencia externa.
-- La validación cruzada puede rechazar filas legítimas si el SRI cambia el formato
-  de alguna columna (por ejemplo, el formato de fecha). Por eso el rechazo **reporta
-  la fila al usuario** en lugar de descartarla en silencio.
-- `sha256` sobre el archivo completo detecta la resubida idéntica antes de parsear,
-  pero no sustituye a la deduplicación por fila: dos archivos distintos pueden
-  compartir comprobantes.
+### Negative
+- Assumes the SRI never reuses access keys across vouchers. That's the
+  system's design, but it's an external dependency.
+- Cross-validation can reject legitimate rows if the SRI changes a
+  column's format (for example, the date format). That's why a rejection
+  **reports the row to the user** instead of silently discarding it.
+- `sha256` over the whole file catches an identical re-upload before
+  parsing, but it doesn't replace per-row deduplication: two different
+  files can share vouchers.

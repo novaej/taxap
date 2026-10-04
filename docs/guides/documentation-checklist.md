@@ -1,74 +1,76 @@
-# Checklist de documentación
+# Documentation checklist
 
-Qué actualizar según el tipo de cambio.
+What to update depending on the kind of change.
 
 ---
 
-## Regla o cálculo tributario nuevo
+## New tax rule or calculation
 
-- [ ] `src/domain/` — la regla, pura y sin I/O
-- [ ] `tests/domain/` — casos límite: factor cero, notas de crédito de otro
-      período, `IVA = 0`, facturas mixtas
-- [ ] `docs/tax/` — si introduce un valor normativo, con **fuente y fecha**
-- [ ] `docs/adr/` — si cambia un criterio ya decidido
+- [ ] `src/domain/` — the rule, pure and with no I/O
+- [ ] `tests/domain/` — edge cases: zero factor, credit notes from
+      another period, `IVA = 0`, mixed invoices
+- [ ] `docs/tax/` — if it introduces a normative value, with **source and
+      date**
+- [ ] `docs/adr/` — if it changes an already-decided criterion
 - [ ] `CHANGELOG.md`
 
-## Pantalla nueva
+## New screen
 
 - [ ] `src/app/[locale]/(app)/.../page.tsx`
-- [ ] `messages/es.json` — sin literales en los componentes
-- [ ] `docs/guides/code-flow.md` — agregar la pantalla al recorrido
-- [ ] Verificar el vocabulario contra [ADR-014](../adr/014-caracter-asistivo-y-disclaimers.md)
+- [ ] `messages/es.json` — no literals in components
+- [ ] `docs/guides/code-flow.md` — add the screen to the walk-through
+- [ ] Check the vocabulary against [ADR-014](../adr/014-caracter-asistivo-y-disclaimers.md)
 - [ ] `CHANGELOG.md`
 
-## Tabla o columna nueva
+## New table or column
 
-- [ ] `prisma/schema.prisma` + migración
-- [ ] **¿Contiene datos de contribuyentes? → política de RLS**
+- [ ] `prisma/schema.prisma` + migration
+- [ ] **Does it hold taxpayer data? → RLS policy**
       ([ADR-004](../adr/004-rls-por-usuario-con-prisma.md))
 - [ ] `docs/data-model.md`
-- [ ] ¿Dinero? → `DECIMAL(14,2)`
+- [ ] Money? → `DECIMAL(14,2)`
 - [ ] `CHANGELOG.md`
 
-## Cambio en el parser del SRI
+## Change to the SRI parser
 
-- [ ] `docs/tax/formato-archivos-sri.md` — con evidencia del archivo real
-- [ ] Tachar el pendiente correspondiente si se verificó
-- [ ] `tests/domain/` — caso con la fila real
+- [ ] `docs/tax/formato-archivos-sri.md` — with evidence from a real file
+- [ ] Cross off the corresponding pending item if verified
+- [ ] `tests/domain/` — a case with the real row
 - [ ] `CHANGELOG.md`
 
-## Decisión de arquitectura
+## Architecture decision
 
-- [ ] `docs/adr/NNN-nombre.md` — nuevo, **nunca editar uno existente**
-- [ ] `docs/adr/README.md` — agregar a la tabla
-- [ ] Si reemplaza a otro, marcar el anterior como *Reemplazado por ADR-NNN*
-- [ ] `CLAUDE.md` — si introduce una regla dura
+- [ ] `docs/adr/NNN-name.md` — new, **never edit an existing one**
+- [ ] `docs/adr/README.md` — add to the table
+- [ ] If it replaces another, mark the previous one as *Replaced by ADR-NNN*
+- [ ] `CLAUDE.md` — if it introduces a hard rule
 - [ ] `CHANGELOG.md`
 
-## Variable de entorno nueva
+## New environment variable
 
-- [ ] `.example.env` — con comentario explicando para qué sirve
-- [ ] `GETTING_STARTED.md` — si el usuario debe configurarla
+- [ ] `.example.env` — with a comment explaining what it's for
+- [ ] `GETTING_STARTED.md` — if the user needs to configure it
 - [ ] `CHANGELOG.md`
 
-## Corrección de error
+## Bug fix
 
-- [ ] `CHANGELOG.md` en "Corregido"
-- [ ] `CLAUDE.md` en "Errores fáciles de cometer aquí", si es de los que se repiten
+- [ ] `CHANGELOG.md` under "Fixed"
+- [ ] `CLAUDE.md` under "Easy mistakes to make here," if it's a recurring
+      kind of mistake
 
 ---
 
-## Índice de documentos
+## Document index
 
-| Archivo | Se actualiza cuando |
+| File | Updated when |
 |---|---|
-| `docs/adr/` | Se toma una decisión de arquitectura |
-| `docs/data-model.md` | Cambia el esquema |
-| `docs/tax/` | Cambia o se verifica un valor normativo |
-| `docs/guides/code-flow.md` | Cambia el recorrido de un período, o se agrega/modifica una pantalla |
-| `CLAUDE.md` | Nueva regla dura o error recurrente |
-| `CHANGELOG.md` | Cada cambio |
-| `NEXT_STEPS.md` | Se completa o se descubre un pendiente |
-| `.example.env` | Nueva variable de entorno |
-| `GETTING_STARTED.md` | Cambian los pasos de instalación o el recorrido de uso rápido |
-| `TROUBLESHOOTING.md` | Nuevo error recurrente de entorno/infraestructura (no tributario — eso va a `CLAUDE.md`) |
+| `docs/adr/` | An architecture decision is made |
+| `docs/data-model.md` | The schema changes |
+| `docs/tax/` | A normative value changes or is verified |
+| `docs/guides/code-flow.md` | A period's walk-through changes, or a screen is added/modified |
+| `CLAUDE.md` | A new hard rule or recurring mistake |
+| `CHANGELOG.md` | Every change |
+| `NEXT_STEPS.md` | A pending item is completed or discovered |
+| `.example.env` | A new environment variable |
+| `GETTING_STARTED.md` | Installation steps or the quick-start walk-through change |
+| `TROUBLESHOOTING.md` | A new recurring environment/infrastructure error (not tax-related — that goes in `CLAUDE.md`) |

@@ -1,86 +1,98 @@
-# ADR-014: Carácter asistivo del sistema
+# ADR-014: The system's assistive character
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-taxap calcula valores que alimentan una declaración tributaria. Una declaración
-incorrecta genera consecuencias reales —multas, intereses, glosas— para el
-contribuyente, y el responsable ante la administración tributaria es siempre él o su
-contador, nunca el software.
+taxap calculates values that feed into a tax return. An incorrect filing
+has real consequences — fines, interest, assessments — for the taxpayer,
+and the party responsible to the tax authority is always the taxpayer or
+their accountant, never the software.
 
-Además, el sistema tiene limitaciones conocidas y estructurales que no se pueden
-resolver, porque provienen de la fuente de datos:
+Moreover, the system has known, structural limitations that can't be
+resolved, because they come from the data source:
 
-- Trabaja con totales, no con el detalle de líneas
+- It works with totals, not line-item detail
   ([ADR-008](008-solo-totales-sin-detalle-de-lineas.md)).
-- No distingue 0%, exento y no objeto de IVA.
-- Clasifica a partir del proveedor y la actividad económica, sin concepto.
-- Parte de sus clasificaciones provienen de inferencia, no de certeza.
+- It doesn't distinguish 0% rate, exempt, and not subject to VAT.
+- It classifies from the supplier and economic activity, with no concept.
+- Some of its classifications come from inference, not certainty.
 
-Un producto que presente sus resultados como definitivos estaría tergiversando lo
-que hace, y creando una expectativa que no puede sostener.
+A product that presents its results as final would be misrepresenting
+what it does, and creating an expectation it can't sustain.
 
-## Decisión
+## Decision
 
-**El carácter asistivo se expresa en el diseño del producto, no solo en un texto
-legal.** Tres niveles:
+**The assistive character is expressed in the product's design, not only
+in a legal text.** Three levels:
 
-**1. En el lenguaje.** No existe un botón "Declarar". No existe el estado "Listo
-para declarar". El vocabulario del producto es:
+**1. In the language.** The UI is in Spanish, and there is no "Declarar"
+("File") button, no "Listo para declarar" ("Ready to file") status. The
+literal words the product's vocabulary must never use, and what it uses
+instead:
 
-| Se usa | No se usa |
-|---|---|
-| Borrador generado | Declaración lista |
-| Pendiente de revisión | Procesado, sin más |
-| Valor sugerido | Valor calculado |
-| Marcar como declarado | Declarar |
+| Used (Spanish, literal) | English gloss | Not used (Spanish, literal) | English gloss |
+|---|---|---|---|
+| Borrador generado | Draft generated | Listo para declarar | Ready to file |
+| Pendiente de revisión | Pending review | Procesado, sin más | Processed, full stop |
+| Valor sugerido | Suggested value | Valor calculado | Calculated value |
+| Marcar como declarado | Mark as filed | Declarar | File |
 
-**2. En la interfaz.** Aviso permanente —no descartable— en la pantalla de
-pre-declaración y en todo borrador exportado o impreso:
+**2. In the interface.** A permanent — non-dismissible — notice on the
+pre-filing screen and on every exported or printed draft, in Spanish
+since that's the UI's language (English gloss alongside each, for this
+document only):
 
-> Los valores presentados son un cálculo asistido a partir de los archivos
-> cargados y deben ser revisados y validados por el responsable antes de
-> presentarse al SRI. Este sistema no presenta declaraciones ni sustituye el
-> criterio profesional.
+> Cálculo asistido, pendiente de revisión del responsable antes de
+> presentarse al SRI. No sustituye el criterio profesional.
+>
+> (Assisted calculation, pending review by the responsible party before
+> filing with the SRI. Does not substitute for professional judgment.)
 
-Y un aviso específico sobre el alcance de los datos:
+And a specific notice about the scope of the data:
 
-> Los cálculos se basan en los totales de cada comprobante. Los archivos del SRI
-> no incluyen el detalle de líneas, por lo que si necesita desagregar un
-> comprobante debe revisar el original.
+> Los cálculos se basan en los totales de cada comprobante. Los archivos
+> del SRI no incluyen el detalle de líneas, así que si necesitas
+> desglosar un comprobante, revisa el original.
+>
+> (Calculations are based on each voucher's totals. SRI files don't
+> include line-item detail, so if you need to break down a voucher,
+> review the original.)
 
-**3. En la aceptación.** Al registrarse, el usuario acepta los términos de forma
-explícita. La aceptación se versiona y se registra con quién y cuándo, siguiendo
-el patrón de `comprobify`.
+**3. In acceptance.** On registration, the user explicitly accepts the
+terms. Acceptance is versioned and recorded with who and when, following
+`comprobify`'s pattern.
 
-**Corolario de diseño:** el sistema nunca oculta su incertidumbre para verse mejor.
-Un comprobante que no se pudo clasificar con confianza va a la bandeja aunque eso
-haga ver al producto menos automático. La trazabilidad por casillero existe
-precisamente para que el usuario pueda desconfiar y verificar.
+**Design corollary:** the system never hides its uncertainty to look
+better. A voucher that couldn't be classified with confidence goes to the
+queue even if that makes the product look less automatic. Per-field
+traceability exists precisely so the user can be skeptical and verify.
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- Lo que el producto promete coincide con lo que hace.
-- La responsabilidad queda donde legal y profesionalmente corresponde.
-- Empuja decisiones de diseño sanas: trazabilidad, bandeja visible, supuestos
-  inspeccionables ([ADR-012](012-tasas-y-casilleros-como-datos-con-vigencia.md)).
+### Positive
+- What the product promises matches what it does.
+- Responsibility stays where it legally and professionally belongs.
+- It pushes toward sound design decisions: traceability, a visible queue,
+  inspectable assumptions ([ADR-012](012-tasas-y-casilleros-como-datos-con-vigencia.md)).
 
-### Negativas
-- Comercialmente es menos atractivo que "declara en un clic". Es el costo de ser
-  exacto sobre lo que el sistema hace.
-- Los avisos permanentes ocupan espacio y, con el uso repetido, dejan de leerse.
-  Mitigado haciéndolos específicos y contextuales en vez de un bloque genérico.
-- Un usuario puede aun así confiar ciegamente. El aviso reduce el riesgo, no lo
-  elimina. Por eso la mitigación real es la trazabilidad: que revisar sea fácil.
+### Negative
+- Commercially it's less appealing than "file in one click." That's the
+  cost of being accurate about what the system does.
+- Permanent notices take up space and, with repeated use, stop being
+  read. Mitigated by making them specific and contextual instead of a
+  generic block.
+- A user can still blindly trust it. The notice reduces the risk, it
+  doesn't eliminate it. That's why the real mitigation is traceability:
+  making review easy.
 
-## Nota
+## Note
 
-Este ADR describe una postura de producto y diseño. **No constituye asesoría legal
-ni sustituye una revisión de términos y condiciones por un profesional**, que debe
-hacerse antes de abrir el producto a usuarios reales.
+This ADR describes a product and design stance. **It does not constitute
+legal advice and does not substitute for a review of the terms and
+conditions by a professional**, which must happen before opening the
+product to real users.

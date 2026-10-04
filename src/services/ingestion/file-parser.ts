@@ -1,10 +1,11 @@
 /**
  * SRI file format parser (tab-separated text files).
- * Parses comprobantes recibidos (received) and emitidos (issued).
+ * Parses received vouchers (comprobantes recibidos) and issued vouchers
+ * (comprobantes emitidos).
  *
  * Format verified against real files: docs/tax/formato-archivos-sri.md
- * (2026-09-20). Do not add columns beyond what that document lists —
- * see CLAUDE.md -> "Verificación antes de tocar el formato del SRI".
+ * (2026-09-20). Do not add columns beyond what that document lists --
+ * see CLAUDE.md -> "Verification before touching the SRI format".
  */
 
 import Decimal from 'decimal.js';
@@ -15,30 +16,30 @@ import Decimal from 'decimal.js';
 
 export interface ReceivedInvoiceRow {
   RUC_EMISOR: string;
-  RAZON_SOCIAL_EMISOR: string; // señal principal de clasificación
-  TIPO_COMPROBANTE: string; // lista blanca, ADR-010
+  RAZON_SOCIAL_EMISOR: string; // main classification signal
+  TIPO_COMPROBANTE: string; // whitelist, ADR-010
   SERIE_COMPROBANTE: string; // EEE-PPP-SSSSSSSSS
-  CLAVE_ACCESO: string; // 49 dígitos
-  FECHA_AUTORIZACION: string; // DD/MM/AAAA HH:MM:SS
-  FECHA_EMISION: string; // DD/MM/AAAA — determina el período, no autorización
-  IDENTIFICACION_RECEPTOR: string; // 10 o 13 dígitos
+  CLAVE_ACCESO: string; // 49 digits
+  FECHA_AUTORIZACION: string; // DD/MM/YYYY HH:MM:SS
+  FECHA_EMISION: string; // DD/MM/YYYY -- determines the period, not the authorization date
+  IDENTIFICACION_RECEPTOR: string; // 10 or 13 digits
   VALOR_SIN_IMPUESTOS: Decimal;
-  IVA: Decimal; // 0 en comprobantes sin IVA
+  IVA: Decimal; // 0 on vouchers with no IVA
   IMPORTE_TOTAL: Decimal;
-  NUMERO_DOCUMENTO_MODIFICADO: string; // solo notas de crédito/débito
+  NUMERO_DOCUMENTO_MODIFICADO: string; // credit/debit notes only
 }
 
 // ============================================================================
-// Issued Invoices (Ventas) - 8 columns. Estructura distinta, no el mismo
-// archivo con menos datos: no trae identificación del emisor ni receptor.
+// Issued Invoices (Ventas) - 8 columns. A different structure, not the same
+// file with less data: it carries no issuer or receiver identification.
 // ============================================================================
 
 export interface IssuedInvoiceRow {
-  COMPROBANTE: string; // nótese: no TIPO_COMPROBANTE
+  COMPROBANTE: string; // note: not TIPO_COMPROBANTE
   SERIE_COMPROBANTE: string;
   CLAVE_ACCESO: string;
   FECHA_AUTORIZACION: string;
-  FECHA_EMISION: string; // incluye hora en este archivo
+  FECHA_EMISION: string; // includes a time component in this file
   VALOR_SIN_IMPUESTOS: Decimal;
   IVA: Decimal;
   IMPORTE_TOTAL: Decimal;

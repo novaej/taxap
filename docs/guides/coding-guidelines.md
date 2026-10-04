@@ -1,127 +1,132 @@
-# Guía de desarrollo
+# Development guide
 
-## Las cuatro capas
+## The four layers
 
 ```
-src/domain/     Reglas tributarias puras. Sin I/O.
-src/services/   Orquestación: dominio + base de datos + IA.
-src/lib/        Infraestructura: db, auth, rbac, ia, almacenamiento.
-src/app/        Rutas, Server Actions, UI.
+src/domain/     Pure tax rules. No I/O.
+src/services/   Orchestration: domain + database + AI.
+src/lib/        Infrastructure: db, auth, rbac, ai, storage.
+src/app/        Routes, Server Actions, UI.
 ```
 
-**La regla que sostiene todo:** `src/domain/` no importa `@prisma/client` ni
-`next`. Si una función de dominio necesita la tasa de IVA, se le pasa como
-parámetro; no la consulta.
+**The rule that holds everything up:** `src/domain/` never imports
+`@prisma/client` or `next`. If a domain function needs the VAT rate, it's
+passed as a parameter; it never queries for it.
 
-Conviene una regla de lint que lo imponga. Sin ella, la separación se erosiona en
-meses y con ella se pierde la capacidad de probar el motor sin infraestructura.
+A lint rule enforcing this would help. Without one, the separation erodes
+over months, and with it goes the ability to test the engine without
+infrastructure.
 
-### Qué va en cada capa
+### What goes in each layer
 
-| Ejemplo | Capa |
+| Example | Layer |
 |---|---|
-| "Con factor 0, ¿cuánto crédito hay?" | `domain/` |
-| "Clasificar los comprobantes sin clasificar de este período" | `services/` |
-| "Fijar `app.current_user_id` y abrir transacción" | `lib/` |
-| "Mostrar la bandeja y permitir reasignar" | `app/` |
+| "At factor 0, how much credit is there?" | `domain/` |
+| "Classify this period's unclassified vouchers" | `services/` |
+| "Set `app.current_user_id` and open a transaction" | `lib/` |
+| "Show the queue and allow reassignment" | `app/` |
 
-El CRUD simple (alta de contribuyente, edición de perfil) **no pasa por `domain/`**.
-Va directo en la Server Action o en `services/`. La capa de dominio existe para las
-reglas tributarias, no como ceremonia obligatoria.
+Simple CRUD (creating a taxpayer, editing a profile) **doesn't go through
+`domain/`**. It goes directly in the Server Action or in `services/`. The
+domain layer exists for tax rules, not as mandatory ceremony.
 
-Autenticación (`src/lib/auth.ts`, `src/lib/session.ts`) y la base
-(`src/lib/db.ts`) son infraestructura — `lib/` — por la misma razón: no son
-reglas tributarias.
+Authentication (`src/lib/auth.ts`, `src/lib/session.ts`) and the database
+(`src/lib/db.ts`) are infrastructure — `lib/` — for the same reason: they
+aren't tax rules.
 
-## Acceso a datos
+## Data access
 
-**Toda consulta de datos de contribuyentes pasa por el envoltorio de usuario.**
+**Every query on taxpayer data goes through the user wrapper.**
 
 ```ts
-// Correcto
+// Correct
 await withUser(userId, (tx) => tx.invoicesReceived.findMany({ ... }));
 
-// Incorrecto — devuelve TODO, sin filtrar por usuario
+// Wrong — returns EVERYTHING, unfiltered by user
 await db.invoicesReceived.findMany({ ... });
 ```
 
-La segunda forma compila y se ejecuta sin error. Ese es el problema.
-Ver [ADR-004](../adr/004-rls-por-usuario-con-prisma.md).
+The second form compiles and runs without error. That's the problem.
+See [ADR-004](../adr/004-rls-por-usuario-con-prisma.md).
 
-**Prisma para CRUD y migraciones. Las agregaciones (totales, factor de
-proporcionalidad) son TypeScript puro en `domain/`**
-(`src/domain/iva/calculator.ts`, `proportionality.ts`), no SQL — así se
-prueban sin base de datos, que es exactamente lo que pide
-[ADR-001](../adr/001-nextjs-monolito-con-capa-de-dominio.md). Las Server
-Actions (`src/app/.../actions.ts`) traen los comprobantes ya clasificados
-con Prisma y se los pasan al dominio; el dominio nunca toca la base.
+**Prisma for CRUD and migrations. Aggregations (totals, proportionality
+factor) are pure TypeScript in `domain/`**
+(`src/domain/iva/calculator.ts`, `proportionality.ts`), not SQL — this
+way they're tested without a database, which is exactly what
+[ADR-001](../adr/001-nextjs-monolito-con-capa-de-dominio.md) calls for.
+Server Actions (`src/app/.../actions.ts`) fetch the already-classified
+vouchers with Prisma and hand them to the domain; the domain never
+touches the database.
 
-## Dinero
+## Money
 
-`DECIMAL(14,2)` en PostgreSQL, `Prisma.Decimal` en TypeScript. Ninguna operación
-monetaria toca la coma flotante de JavaScript.
+`DECIMAL(14,2)` in PostgreSQL, `Prisma.Decimal` in TypeScript. No
+monetary operation ever touches JavaScript floating point.
 
 ```ts
-// Incorrecto
+// Wrong
 const total = invoices.reduce((s, i) => s + Number(i.subtotal), 0);
 
-// Correcto
+// Correct
 const total = invoices.reduce((s, i) => s.add(i.subtotal), new Decimal(0));
 ```
 
-## Fechas tributarias
+## Tax dates
 
-`DATE` sin zona horaria. Un comprobante emitido el 31/08 pertenece a agosto sin
-importar dónde corra el servidor.
+`DATE` with no time zone. A voucher issued on 08/31 belongs to August
+regardless of where the server runs.
 
-**El período lo determina `FECHA_EMISION`**, nunca `FECHA_AUTORIZACION`: una
-factura de agosto autorizada el 1 de septiembre es de agosto.
+**The period is determined by `FECHA_EMISION`**, never
+`FECHA_AUTORIZACION`: an August invoice authorized on September 1 is
+still August's.
 
-## Valores normativos
+## Normative values
 
-Nunca constantes. Se consultan por la fecha del hecho:
+Never constants. They're looked up by the date of the event:
 
 ```ts
-// Incorrecto
+// Wrong
 const base = vatAmount.div(0.15);
 
-// Correcto
+// Correct
 const rate = await getVatRate(invoice.issueDate);
 ```
 
-Ver [ADR-012](../adr/012-tasas-y-casilleros-como-datos-con-vigencia.md).
+See [ADR-012](../adr/012-tasas-y-casilleros-como-datos-con-vigencia.md).
 
-## Clasificación
+## Classification
 
-- La consulta a la IA es **por proveedor**, no por comprobante.
-- Nunca se envía RUC ni nombre del contribuyente a la IA.
-- Todo veredicto registra `classification_source`, `rules_version` y —si es IA—
-  `model_id` y `prompt_version`.
-- Todo cambio escribe un evento en `classification_events`.
-- Por debajo del umbral de confianza, va a la bandeja. No se aplica "por si acaso".
+- The AI query is **per supplier**, not per voucher.
+- RUC and taxpayer name are never sent to the AI.
+- Every verdict records `classification_source`, `rules_version`, and
+  —if AI— `model_id` and `prompt_version`.
+- Every change writes an event to `classification_events`.
+- Below the confidence threshold, it goes to the queue. Nothing is
+  applied "just in case."
 
-## Pruebas
+## Testing
 
-No hay todavía un test runner configurado (ni jest ni vitest en
+There's no test runner configured yet (neither jest nor vitest in
 `package.json`) — `src/services/ingestion/__tests__/file-parser.test.ts`
-existe pero no corre. Primer paso pendiente antes de que esta sección
-describa algo real: elegir runner e instalarlo.
+exists but doesn't run. First pending step before this section describes
+anything real: choose a runner and install it.
 
-Convención prevista una vez exista:
+Planned convention once one exists:
 
-| Tipo | Ubicación | Necesita base de datos |
+| Type | Location | Needs a database |
 |---|---|---|
-| Dominio | `src/domain/**/__tests__/` | No |
-| RLS | `scripts/` (ver verificaciones ad hoc en `NEXT_STEPS.md`) | Sí |
+| Domain | `src/domain/**/__tests__/` | No |
+| RLS | `scripts/` (see ad hoc checks in `NEXT_STEPS.md`) | Yes |
 
-Las de dominio son el activo principal. Una regla tributaria nueva llega con sus
-casos límite cubiertos: factor cero, notas de crédito de otro período, comprobantes
-con `IVA = 0`, facturas mixtas.
+Domain tests are the main asset. A new tax rule arrives with its edge
+cases covered: zero factor, credit notes from another period, vouchers
+with `IVA = 0`, mixed invoices.
 
-## Lenguaje del producto
+## Product language
 
-El vocabulario no promete lo que el sistema no hace. Nunca "Declarar" ni "Listo
-para declarar". Ver [ADR-014](../adr/014-caracter-asistivo-y-disclaimers.md).
+The vocabulary never promises what the system doesn't do. Never "File"
+nor "Ready to file." See
+[ADR-014](../adr/014-caracter-asistivo-y-disclaimers.md).
 
-Todo texto visible pasa por `next-intl`, en `messages/es.json`. Sin literales en
-los componentes.
+All visible text goes through `next-intl`, in `messages/es.json`. No
+literals in components.

@@ -4,9 +4,9 @@ import { routing } from './i18n/routing';
 
 const intlMiddleware = createMiddleware(routing);
 
-// Rutas públicas: login, registro y la portada (que solo redirige). Todo lo
-// demás exige sesión -- por exclusión, para que una pantalla nueva quede
-// protegida por defecto en vez de requerir que alguien la liste a mano.
+// Public paths: login, register, and the homepage (which only redirects).
+// Everything else requires a session -- by exclusion, so a new screen is
+// protected by default instead of requiring someone to list it by hand.
 const PUBLIC_PATHS = ['/login', '/register'];
 
 function isPublicPath(pathname: string): boolean {

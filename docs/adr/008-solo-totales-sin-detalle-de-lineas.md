@@ -1,98 +1,110 @@
-# ADR-008: Solo totales, sin detalle de líneas
+# ADR-008: Totals only, no line-item detail
 
-> **Actualización (2026-09-20):** la regla "`IVA = 0` no entra a la cascada" es
-> correcta para **compras**, donde un comprobante sin IVA no genera crédito. **No
-> aplica sin más a ventas**: el formulario reparte las ventas con `IVA = 0` entre
-> destinos que sí cambian el factor de proporcionalidad (exportaciones, ventas 0% con
-> derecho a crédito…), y el archivo de emitidos no indica cuál corresponde. Por eso el
-> usuario marca el destino de cada venta con `IVA = 0` en una tabla tras la carga. Ver
-> [`docs/tax/formulario-104.md`](../tax/formulario-104.md) → *Decisiones tomadas*.
-> El resto del ADR no cambia.
+> **Update (2026-09-20):** the rule "`IVA = 0` doesn't enter the cascade" is
+> correct for **purchases**, where a voucher with no IVA generates no
+> credit. **It doesn't automatically apply to sales**: the form splits
+> sales with `IVA = 0` across destinations that do change the
+> proportionality factor (exports, 0%-rate sales with credit
+> entitlement…), and the issued-vouchers file doesn't indicate which one
+> applies. That's why the user marks the destination of each `IVA = 0`
+> sale in a table after upload. See
+> [`docs/tax/formulario-104.md`](../tax/formulario-104.md) →
+> *Decisions made*. The rest of the ADR is unchanged.
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-Los archivos de comprobantes del SRI traen **un total por comprobante**, no el
-detalle de líneas. Las columnas útiles para IVA son:
+SRI voucher files carry **one total per voucher**, not line-item detail.
+The columns useful for VAT are:
 
 ```
 VALOR_SIN_IMPUESTOS    IVA    IMPORTE_TOTAL
 ```
 
-Esto tiene una consecuencia incómoda: una factura **mixta** —con productos gravados
-y productos con tarifa 0%— llega como un solo par de números.
+This has an uncomfortable consequence: a **mixed** invoice — with taxed
+items and 0%-rate items — arrives as a single pair of numbers.
 
 ```
 VALOR_SIN_IMPUESTOS = 100.00
-IVA                 =   4.50    → solo 30.00 estuvo gravado al 15%
+IVA                 =   4.50    → only 30.00 was taxed at 15%
 ```
 
-Se consideró derivar la base gravada como `IVA / tasa` y el resto como base 0%.
-La aritmética es trivial, pero introduce un número que la fuente no contiene, con
-sus propias tolerancias de redondeo y sus propios fallos de conciliación.
+Deriving the taxed base as `IVA / rate` and the rest as the 0% base was
+considered. The arithmetic is trivial, but it introduces a number the
+source doesn't contain, with its own rounding tolerances and its own
+reconciliation failures.
 
-También se consideró qué hacer con `IVA = 0`. Ese caso es ambiguo en la fuente:
-no se distingue tarifa 0%, exento y no objeto de IVA.
+What to do with `IVA = 0` was also considered. That case is ambiguous in
+the source: it doesn't distinguish 0% rate, exempt, and not subject to
+VAT.
 
-## Decisión
+## Decision
 
-**Se almacena lo que el archivo trae, y nada más.** `subtotal` y `vat_amount` son
-copias fieles de `VALOR_SIN_IMPUESTOS` e `IVA`. No hay columnas derivadas.
+**Only what the file carries is stored, and nothing more.** `subtotal` and
+`vat_amount` are faithful copies of `VALOR_SIN_IMPUESTOS` and `IVA`. There
+are no derived columns.
 
-**La clasificación opera sobre el comprobante completo**, no sobre partes de él.
-Una factura mixta recibe un solo tratamiento, determinado por el proveedor y la
-actividad económica del contribuyente
+**Classification operates on the whole voucher**, not on parts of it. A
+mixed invoice gets a single treatment, determined by the supplier and the
+taxpayer's economic activity
 ([ADR-006](006-reglas-por-proveedor-y-actividad-economica.md)).
 
-**Los comprobantes con `IVA = 0` no entran a la cascada de clasificación.** Sin
-IVA no hay crédito tributario posible, no hay categoría de crédito que decidir y no hay
-factor que aplicar. Van a un bucket agregado (`iva_category = NOT_APPLICABLE`) y
-su total se reporta sin decisión por comprobante. **No hace falta saber por qué el
-IVA es cero.**
+**Vouchers with `IVA = 0` don't enter the classification cascade.** With
+no VAT there's no possible tax credit, no credit category to decide, and
+no factor to apply. They go to an aggregated bucket
+(`iva_category = NOT_APPLICABLE`) and their total is reported without a
+per-voucher decision. **There's no need to know why the VAT is zero.**
 
-**La limitación se declara en la interfaz**, no se esconde:
+**The limitation is stated in the UI**, not hidden (literal Spanish, since
+that's the UI's language, with an English gloss for this document only):
 
-> Los cálculos se basan en los totales de cada comprobante. Los archivos del SRI no
-> incluyen el detalle de líneas, por lo que una factura con productos gravados y no
-> gravados recibe un solo tratamiento. Si necesita desagregarla, revise el
-> comprobante original.
+> Los cálculos se basan en los totales de cada comprobante. Los archivos
+> del SRI no incluyen el detalle de líneas, por lo que una factura con
+> productos gravados y no gravados recibe un solo tratamiento. Si
+> necesita desagregarla, revise el comprobante original.
+>
+> (Calculations are based on each voucher's totals. SRI files don't
+> include line-item detail, so an invoice with both taxed and untaxed
+> items receives a single treatment. If you need to break it down,
+> review the original voucher.)
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- El modelo de datos refleja la fuente sin inventar nada. Cualquier valor mostrado
-  se puede rastrear a una columna de un archivo.
-- Menos superficie de error: sin derivaciones no hay conciliaciones que fallen ni
-  incidencias de redondeo que inunden la bandeja.
-- La clasificación se simplifica: una decisión por comprobante.
-- El volumen que pasa por la cascada se reduce, porque los `IVA = 0` no entran.
+### Positive
+- The data model reflects the source without inventing anything. Any
+  displayed value can be traced back to a column in a file.
+- Less surface for error: with no derivations, there are no
+  reconciliations to fail and no rounding issues flooding the queue.
+- Classification is simplified: one decision per voucher.
+- The volume passing through the cascade is reduced, because `IVA = 0`
+  vouchers don't enter it.
 
-### Negativas
-- **Una factura mixta se reporta entera en un solo casillero de base imponible.**
-  Es incorrecto en el detalle, aunque el crédito tributario —que es el IVA, y ese
-  sí es exacto— quede bien. El aviso en la interfaz es la mitigación, no la
-  solución.
-- El bucket de `IVA = 0` no se puede desagregar entre 0%, exento y no objeto. Si el
-  formulario los distingue, el usuario debe ajustar manualmente.
-- Si más adelante se ingesta el XML del comprobante —que sí trae líneas—, convivirán
-  dos niveles de precisión según el origen del dato. Se resuelve con
-  `source_files.kind`, pero hay que preverlo al diseñar los reportes.
+### Negative
+- **A mixed invoice gets reported whole in a single taxable-base field.**
+  It's incorrect in the detail, even though the tax credit — which is the
+  VAT, and that part is exact — comes out right. The UI notice is the
+  mitigation, not the solution.
+- The `IVA = 0` bucket can't be split between 0%, exempt, and not subject.
+  If the form distinguishes them, the user has to adjust manually.
+- If the voucher's XML — which does carry line items — is ingested later,
+  two levels of precision will coexist depending on the data's origin.
+  This is resolved with `source_files.kind`, but it has to be anticipated
+  when designing the reports.
 
-## Alternativas consideradas
+## Alternatives considered
 
-**Derivar `base_gravada = IVA / tasa`.** Permitiría separar correctamente las
-facturas mixtas. Descartada para el MVP: agrega un valor inventado, con tolerancias
-y fallos propios, para corregir un caso que el aviso cubre razonablemente. Se puede
-reconsiderar si el uso real muestra que las facturas mixtas son frecuentes y
-materiales.
+**Derive `taxed_base = IVA / rate`.** Would allow correctly splitting mixed
+invoices. Discarded for the MVP: it adds an invented value, with its own
+tolerances and failures, to fix a case the notice reasonably covers. Can be
+reconsidered if real usage shows mixed invoices are frequent and material.
 
-**Exigir el XML en lugar del TXT.** Resolvería el detalle de líneas de raíz, pero
-descargar un XML por comprobante es inviable manualmente.
+**Require the XML instead of the TXT.** Would resolve the line-item detail
+at the root, but downloading one XML per voucher manually isn't viable.
 
-**Enviar las facturas mixtas a la bandeja.** Preciso pero inutilizable: cualquier
-compra en supermercado o farmacia caería ahí.
+**Send mixed invoices to the queue.** Accurate but unusable: any
+supermarket or pharmacy purchase would land there.

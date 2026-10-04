@@ -15,7 +15,7 @@ generator client {
 }
 
 // ============================================================================
-// Identidad y acceso
+// Identity and access
 // ============================================================================
 
 model User {
@@ -47,8 +47,8 @@ enum UserRole {
   ADMIN
 }
 
-/// Planes: dos límites (contribuyentes, usuarios). El segundo es 1 hoy en
-/// todos los planes, pero la columna existe (ADR-003).
+/// Plans: two limits (taxpayers, users). The second is 1 today across
+/// all plans, but the column exists (ADR-003).
 model Plan {
   code         String  @id
   maxTaxpayers Int     @map("max_taxpayers")
@@ -60,8 +60,8 @@ model Plan {
   @@map("plans")
 }
 
-/// Tabla de unión desde el día uno, aunque hoy cada contribuyente tiene
-/// exactamente una fila (ADR-003).
+/// A join table from day one, even though today each taxpayer has
+/// exactly one row (ADR-003).
 model UserTaxpayer {
   id         String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
   userId     String         @map("user_id") @db.Uuid
@@ -84,7 +84,7 @@ enum TaxpayerAccess {
 }
 
 // ============================================================================
-// Contribuyentes y períodos
+// Taxpayers and periods
 // ============================================================================
 
 model Taxpayer {
@@ -96,11 +96,11 @@ model Taxpayer {
   ivaPeriodicity      Periodicity @default(MONTHLY) @map("iva_periodicity")
   economicActivities  Json        @default("[]") @map("economic_activities") // [{code, description}]
   activityFingerprint String      @map("activity_fingerprint")
-  // Quién lo creó — no está en data-model.md, se agrega porque Prisma's
-  // .create() siempre hace INSERT ... RETURNING, y Postgres filtra RETURNING
-  // por la política de SELECT: sin esto, el creador no puede ver la fila que
-  // acaba de insertar hasta que exista el vínculo en user_taxpayers (que se
-  // crea en la sentencia siguiente, no en la misma).
+  // Who created it -- not in data-model.md, added because Prisma's
+  // .create() always does INSERT ... RETURNING, and Postgres filters
+  // RETURNING through the SELECT policy: without this, the creator can't
+  // see the row they just inserted until the link exists in
+  // user_taxpayers (created in the next statement, not the same one).
   createdBy           String      @map("created_by") @db.Uuid
   createdAt           DateTime    @default(now()) @map("created_at")
 
@@ -202,10 +202,10 @@ enum SourceKind {
 }
 
 // ============================================================================
-// Comprobantes
+// Vouchers
 // ============================================================================
 
-/// Refleja las columnas del archivo del SRI, sin inventar campos (ADR-008).
+/// Reflects the SRI file's columns, without inventing fields (ADR-008).
 model InvoiceReceived {
   id           String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
   taxpayerId   String  @map("taxpayer_id") @db.Uuid
@@ -224,7 +224,7 @@ model InvoiceReceived {
   total             Decimal   @db.Decimal(14, 2)
   modifiedDocument  String?   @map("modified_document")
 
-  // Clasificación (ADR-005, ADR-006)
+  // Classification (ADR-005, ADR-006)
   ivaCategory          IvaCategory               @default(UNCLASSIFIED) @map("iva_category")
   processingStatus     ProcessingStatus          @default(UNCLASSIFIED) @map("processing_status")
   classificationSource ClassificationSourceType? @map("classification_source")
@@ -246,17 +246,17 @@ model InvoiceReceived {
 }
 
 enum IvaCategory {
-  CREDIT // 500: con derecho a crédito
-  COST_EXPENSE // 502: sin derecho a crédito
-  NON_DEDUCTIBLE // no deducible (fuera de negocio)
-  NOT_APPLICABLE // IVA = 0, no entra a la cascada
-  UNCLASSIFIED // sin clasificar aún
+  CREDIT // 500: with right to credit
+  COST_EXPENSE // 502: no right to credit
+  NON_DEDUCTIBLE // not deductible (outside the business)
+  NOT_APPLICABLE // IVA = 0, doesn't enter the cascade
+  UNCLASSIFIED // not classified yet
 }
 
-/// PROCESSED/REQUIRES_MANUAL_REVIEW/EXCLUDED son los estados documentados en
-/// data-model.md. UNCLASSIFIED es el estado inicial tras la ingesta, antes de
-/// que corra el paso 2 (ADR-011) — el spec no lo nombra explícitamente pero
-/// "sin clasificar" es justamente esto.
+/// PROCESSED/REQUIRES_MANUAL_REVIEW/EXCLUDED are the states documented in
+/// data-model.md. UNCLASSIFIED is the initial state after ingestion,
+/// before step 2 runs (ADR-011) -- the spec doesn't name it explicitly
+/// but "unclassified" is exactly this.
 enum ProcessingStatus {
   UNCLASSIFIED
   PROCESSED
@@ -272,8 +272,8 @@ enum ClassificationSourceType {
   DETERMINISTIC
 }
 
-/// El archivo de emitidas tiene menos columnas que el de recibidas: no trae
-/// identificación del receptor ni razón social.
+/// The issued-vouchers file has fewer columns than the received one: it
+/// carries no receiver identification or business name.
 model InvoiceIssued {
   id           String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
   taxpayerId   String  @map("taxpayer_id") @db.Uuid
@@ -281,7 +281,7 @@ model InvoiceIssued {
   sourceFileId String? @map("source_file_id") @db.Uuid
 
   accessKey         String    @map("access_key") @db.Char(49)
-  documentType      String    @map("document_type") // COMPROBANTE, no TIPO_COMPROBANTE
+  documentType      String    @map("document_type") // COMPROBANTE, not TIPO_COMPROBANTE
   series            String
   issueDate         DateTime  @map("issue_date")
   authorizationDate DateTime? @map("authorization_date")
@@ -307,20 +307,20 @@ model InvoiceIssued {
 }
 
 enum SalesTreatment {
-  TAXED // IVA > 0, automático
+  TAXED // IVA > 0, automatic
   ZERO_NO_CREDIT // 403
   ZERO_WITH_CREDIT // 405
   EXPORT_GOODS // 407
   EXPORT_SERVICES // 408
   NON_OBJECT_EXEMPT // 431
-  UNCLASSIFIED // sin marcar
+  UNCLASSIFIED // not marked yet
 }
 
 // ============================================================================
-// Motor de clasificación
+// Classification engine
 // ============================================================================
 
-/// La regla es por contribuyente; revocable, no se borra (ADR-006).
+/// The rule is per taxpayer; revocable, never deleted (ADR-006).
 model SupplierRule {
   id                  String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
   taxpayerId          String      @map("taxpayer_id") @db.Uuid
@@ -345,8 +345,8 @@ enum RuleSource {
   AI
 }
 
-/// Agregado global y anónimo — sin identificadores de contribuyentes ni
-/// usuarios (ADR-007).
+/// Global, anonymous aggregate -- no taxpayer or user identifiers
+/// (ADR-007).
 model SharedSupplierCatalog {
   supplierRuc          String      @id @map("supplier_ruc")
   supplierName         String      @map("supplier_name")
@@ -358,7 +358,7 @@ model SharedSupplierCatalog {
   @@map("shared_supplier_catalog")
 }
 
-/// Append-only; UPDATE y DELETE se rechazan por trigger (ADR-013).
+/// Append-only; UPDATE and DELETE are rejected by a trigger (ADR-013).
 model ClassificationEvent {
   id                String  @id @default(dbgenerated("uuidv7()")) @db.Uuid
   receivedInvoiceId String? @map("received_invoice_id") @db.Uuid
@@ -393,7 +393,7 @@ enum ActorType {
 }
 
 // ============================================================================
-// Datos normativos
+// Normative data
 // ============================================================================
 
 model TaxRate {
@@ -402,10 +402,10 @@ model TaxRate {
   validFrom DateTime    @map("valid_from") @db.Date
   validTo   DateTime?   @map("valid_to") @db.Date
 
-  // CLAUDE.md -> "Valores normativos": todo número tributario lleva fuente
-  // y fecha de verificación. El esquema no tenía dónde guardar ninguna de
-  // las dos -- lo que se cargaba (si algo se cargaba) no dejaba rastro de
-  // su origen.
+  // CLAUDE.md -> "Normative values": every tax number carries a source
+  // and a verification date. The schema had nowhere to store either --
+  // whatever got loaded (if anything did) left no trace of where it
+  // came from.
   source     String
   verifiedAt DateTime @map("verified_at") @db.Date
   createdBy  String   @map("created_by") @db.Uuid
@@ -422,17 +422,17 @@ enum TaxRateType {
 }
 
 // ============================================================================
-// Formulario y relación con los resultados (ADR-015)
+// Form and its relation to results (ADR-015)
 // ============================================================================
 
 model FormVersion {
   id           String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  formCode     String     @map("form_code") // "104"; el MVP solo soporta el mensual
+  formCode     String     @map("form_code") // "104"; the MVP only supports the monthly one
   label        String
   validFrom    DateTime   @map("valid_from") @db.Date
   validTo      DateTime?  @map("valid_to") @db.Date
   status       FormStatus @default(DRAFT)
-  sourceSha256 String?    @map("source_sha256") // hash del PDF; el archivo no se guarda
+  sourceSha256 String?    @map("source_sha256") // hash of the PDF; the file itself is never stored
   importedBy   String?    @map("imported_by") @db.Uuid
   importedAt   DateTime?  @map("imported_at")
   publishedAt  DateTime?  @map("published_at")
@@ -452,8 +452,8 @@ enum FormStatus {
   PUBLISHED
 }
 
-/// El catálogo completo del formulario, tal como sale del PDF. Sin valores,
-/// sin fórmulas, sin datos personales.
+/// The form's complete catalog, exactly as it comes out of the PDF. No
+/// values, no formulas, no personal data.
 model FormField {
   id            String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
   formVersionId String     @map("form_version_id") @db.Uuid
@@ -462,7 +462,7 @@ model FormField {
   section       String?
   columnKind    ColumnKind @default(SINGLE) @map("column_kind")
   displayOrder  Int        @map("display_order")
-  observed      Boolean    @default(true) // false si una importación posterior no lo encontró
+  observed      Boolean    @default(true) // false if a later import didn't find it
 
   formVersion    FormVersion     @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
   resultMappings ResultMapping[]
@@ -479,15 +479,15 @@ enum ColumnKind {
   SINGLE
 }
 
-/// Qué campo recibe cada resultado, calculado una vez por versión y guardado.
-/// Nadie edita estas filas a mano.
+/// Which field receives each result, computed once per version and
+/// stored. Nobody edits these rows by hand.
 model ResultMapping {
   formVersionId String        @map("form_version_id") @db.Uuid
-  resultKey     String        @map("result_key") // ej. PURCHASES_WITH_CREDIT.GROSS
+  resultKey     String        @map("result_key") // e.g. PURCHASES_WITH_CREDIT.GROSS
   formFieldId   String?       @map("form_field_id") @db.Uuid
   method        MappingMethod @default(ATTRIBUTES)
-  reason        String // explicación mostrada al usuario
-  confidence    Decimal?      @db.Decimal(3, 2) // solo cuando method = AI
+  reason        String // explanation shown to the user
+  confidence    Decimal?      @db.Decimal(3, 2) // only when method = AI
   createdAt     DateTime      @default(now()) @map("created_at")
 
   formVersion FormVersion @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
@@ -503,12 +503,13 @@ enum MappingMethod {
   AI
 }
 
-/// Lo que el dominio calculó. No conoce casilleros — la presentación une esto
-/// con result_mappings de la versión guardada en tax_periods.
+/// What the domain layer computed. Knows nothing about form fields --
+/// the presentation layer joins this with the version's result_mappings
+/// saved on tax_periods.
 model PeriodResult {
   taxPeriodId String   @map("tax_period_id") @db.Uuid
   resultKey   String   @map("result_key")
-  value       Decimal  @db.Decimal(14, 4) // 4 decimales por el factor (1.0000)
+  value       Decimal  @db.Decimal(14, 4) // 4 decimals for the factor (1.0000)
   computedAt  DateTime @default(now()) @map("computed_at")
 
   taxPeriod TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
@@ -517,7 +518,7 @@ model PeriodResult {
   @@map("period_results")
 }
 
-/// Medición de consumo de IA para detectar abuso, no para facturar (ADR-007).
+/// AI usage measurement to detect abuse, not for billing (ADR-007).
 model AiUsage {
   userId       String   @map("user_id") @db.Uuid
   taxpayerId   String   @map("taxpayer_id") @db.Uuid

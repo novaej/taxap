@@ -1,76 +1,79 @@
-# ADR-010: Lista blanca de tipos de comprobante
+# ADR-010: Voucher-type allowlist
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-La descarga de comprobantes recibidos del SRI no contiene solo facturas. Incluye
-notas de crédito, notas de débito, liquidaciones de compra y comprobantes de
-retención, en la columna `TIPO_COMPROBANTE`.
+The SRI's received-vouchers download doesn't contain invoices only. It
+includes credit notes, debit notes, purchase settlements, and withholding
+receipts, in the `TIPO_COMPROBANTE` column.
 
-Existe la intuición razonable de que para el IVA solo cuentan las facturas. **Es
-incorrecta, y el error va en la dirección peligrosa.**
+There's a reasonable intuition that only invoices count for VAT. **It's
+wrong, and the error goes in the dangerous direction.**
 
-Una **nota de crédito recibida** revierte parte de una compra —devolución,
-descuento posterior, corrección— y lleva IVA. Si ya se tomó el crédito de la
-factura original y la nota se ignora, se está reclamando crédito por algo que fue
-devuelto. Es un error a favor del contribuyente, justamente el tipo que la
-administración tributaria detecta.
+A **received credit note** reverses part of a purchase — a return, a
+later discount, a correction — and carries VAT. If the credit from the
+original invoice was already taken and the note is ignored, credit is
+being claimed for something that was returned. That's an error in the
+taxpayer's favor, exactly the kind the tax authority detects.
 
-## Decisión
+## Decision
 
-**Lista blanca con tratamiento explícito por tipo.** Nunca una lista de exclusión.
+**An allowlist with explicit treatment per type. Never an exclusion
+list.**
 
-| Tipo | Tratamiento en IVA compras |
+| Type | Treatment in purchase VAT |
 |---|---|
-| Factura | Suma |
-| Nota de crédito | **Resta** — se vincula por `NUMERO_DOCUMENTO_MODIFICADO` |
-| Nota de débito | Suma |
-| Liquidación de compra | Suma |
-| Comprobante de retención | **No aplica** — es una retención recibida, no una compra |
+| Invoice | Adds |
+| Credit note | **Subtracts** — linked via `NUMERO_DOCUMENTO_MODIFICADO` |
+| Debit note | Adds |
+| Purchase settlement | Adds |
+| Withholding receipt | **Not applicable** — it's a withholding received, not a purchase |
 
-**Todo tipo no reconocido va a la bandeja de revisión.** No se descarta ni se
-incluye en silencio. Si el SRI incorpora un tipo nuevo, el sistema lo señala en vez
-de equivocarse calladamente.
+**Any unrecognized type goes to the review queue.** It's neither discarded
+nor silently included. If the SRI introduces a new type, the system flags
+it instead of silently getting it wrong.
 
-Las notas de crédito se netean contra el comprobante que modifican. Cuando el
-documento referenciado no está en el período cargado —porque la factura original es
-de un período anterior—, la nota se procesa igual pero se marca, porque puede
-requerir un ajuste que el sistema no puede resolver solo.
+Credit notes are netted against the voucher they modify. When the
+referenced document isn't in the loaded period — because the original
+invoice belongs to an earlier period — the note is still processed, but
+flagged, because it may require an adjustment the system can't resolve on
+its own.
 
-## Nota: comprobantes de retención y el casillero 609
+## Note: withholding receipts and field 609
 
-"No aplica" se refiere a que un comprobante de retención **no es una compra** y no
-va a los casilleros de adquisiciones. No significa que no tenga uso: el casillero
-609 del formulario (retenciones de IVA que le han sido efectuadas en el período)
-podría alimentarse de ellos. Pendiente de verificar con un archivo real; ver
+"Not applicable" means a withholding receipt **isn't a purchase** and
+doesn't go to the acquisitions fields. It doesn't mean it has no use:
+form field 609 (VAT withheld from the taxpayer during the period) could be
+populated from them. Pending verification against a real file; see
 [`formulario-104.md`](../tax/formulario-104.md).
 
-## Estado de verificación
+## Verification status
 
-> **Pendiente de confirmación empírica.** Los tratamientos de esta tabla provienen
-> del razonamiento sobre el dominio, no de la inspección de archivos reales. Los
-> literales exactos de `TIPO_COMPROBANTE` deben verificarse contra descargas reales
-> que incluyan cada tipo, y esta tabla actualizarse en consecuencia.
+> **Pending empirical confirmation.** The treatments in this table come
+> from reasoning about the domain, not from inspecting real files. The
+> exact `TIPO_COMPROBANTE` literals must be verified against real
+> downloads that include each type, and this table updated accordingly.
 >
-> Hasta entonces, la lista blanca es conservadora: cualquier literal no reconocido
-> va a la bandeja, de modo que un literal mal escrito produce trabajo manual, no un
-> cálculo incorrecto.
+> Until then, the allowlist is conservative: any unrecognized literal goes
+> to the queue, so a misspelled literal produces manual work, not an
+> incorrect calculation.
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- El crédito tributario no se sobreestima por ignorar notas de crédito.
-- Un tipo desconocido produce una pregunta al usuario, no un error silencioso.
-- Las reglas de tratamiento están en un solo lugar y se prueban sin base de datos.
+### Positive
+- The tax credit isn't overstated by ignoring credit notes.
+- An unknown type produces a question for the user, not a silent error.
+- The treatment rules live in one place and are tested without a
+  database.
 
-### Negativas
-- El neteo de notas de crédito contra comprobantes de otros períodos es un caso
-  límite genuino que el MVP marca pero no resuelve automáticamente.
-- La lista blanca exige mantenimiento. Si el SRI renombra un tipo, todos los
-  comprobantes de ese tipo caen a la bandeja hasta que alguien lo note — fricción
-  visible, pero en la dirección segura.
+### Negative
+- Netting credit notes against vouchers from other periods is a genuine
+  edge case the MVP flags but doesn't resolve automatically.
+- The allowlist requires upkeep. If the SRI renames a type, every voucher
+  of that type falls into the queue until someone notices — visible
+  friction, but in the safe direction.

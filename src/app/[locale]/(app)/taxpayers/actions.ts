@@ -32,9 +32,9 @@ export interface CreateTaxpayerResult {
 }
 
 /**
- * Alta de contribuyente (mvp-scope original, §1): RUC, razón social,
- * régimen, periodicidad de IVA y actividades económicas, tal como el SRI
- * se los asignó al usuario -- editable después.
+ * Taxpayer sign-up (original mvp-scope, §1): RUC, business name, tax
+ * regime, IVA periodicity, and economic activities, exactly as the SRI
+ * assigned them to the user -- editable afterward.
  */
 export async function createTaxpayer(
   input: CreateTaxpayerInput

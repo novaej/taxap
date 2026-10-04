@@ -9,9 +9,9 @@ import { extractCandidateFields } from '@/services/forms/pdf-field-extractor';
 import type { ColumnKind, TaxRateType } from '@prisma/client';
 
 /**
- * Administración del sistema (ADR-015): el admin sube/publica el
- * formulario y carga tasas verificadas. No ve datos de contribuyentes --
- * todo aquí corre con `asAdmin()`, nunca con `withUser()`.
+ * System administration (ADR-015): the admin uploads/publishes the form
+ * and loads verified rates. They never see taxpayer data -- everything
+ * here runs with `asAdmin()`, never `withUser()`.
  */
 
 export async function getFormVersions() {
@@ -37,15 +37,14 @@ export interface CreateFormVersionDraftResult {
 }
 
 /**
- * Sube el PDF, calcula su sha256 (ADR-015: "el PDF original no se
- * guarda") y hace un primer intento automático de extraer los
- * casilleros de su capa de texto (`extractCandidateFields`). La
- * extracción es heurística, no hay capa de posición/layout real detrás
- * -- un PDF escaneado sin texto no produce nada, y una fila ambigua
- * puede salir con el código o el tipo de columna equivocado. Por eso
- * cada fila queda editable y borrable en la pantalla siguiente: el
- * admin revisa y corrige antes de publicar, nunca se confía en la
- * extracción por sí sola.
+ * Uploads the PDF, computes its sha256 (ADR-015: "the original PDF is
+ * never stored") and makes a first automatic attempt at extracting its
+ * fields from the text layer (`extractCandidateFields`). The extraction
+ * is heuristic, with no real position/layout data behind it -- a scanned
+ * PDF with no text produces nothing, and an ambiguous row can come out
+ * with the wrong code or column kind. That's why every row stays
+ * editable and deletable on the next screen: the admin reviews and
+ * corrects before publishing, the extraction is never trusted on its own.
  */
 export async function createFormVersionDraft(input: {
   formCode: string;
@@ -163,12 +162,13 @@ export interface PublishFormVersionResult {
 }
 
 /**
- * Última validación antes de publicar (ADR-015 paso 3): al menos un
- * campo. Códigos únicos ya los garantiza `@@unique([formVersionId, code])`
- * en el esquema -- `addFormField` nunca deja insertar un duplicado, así
- * que no hace falta revalidarlo aquí. No valida el patrón GROSS/NET/TAX
- * todavía (NEXT_STEPS.md) -- eso requiere saber qué tríos son obligatorios
- * por sección, que no está modelado aún.
+ * Last validation before publishing (ADR-015 step 3): at least one
+ * field. Unique codes are already guaranteed by
+ * `@@unique([formVersionId, code])` in the schema -- `addFormField` never
+ * lets a duplicate get inserted, so there's no need to revalidate that
+ * here. Doesn't yet validate the GROSS/NET/TAX pattern (NEXT_STEPS.md) --
+ * that requires knowing which triplets are mandatory per section, which
+ * isn't modeled yet.
  */
 export async function publishFormVersion(formVersionId: string): Promise<PublishFormVersionResult> {
   await requireAdmin();
@@ -211,10 +211,9 @@ export interface CreateTaxRateResult {
 }
 
 /**
- * Nunca se llama con un valor sin verificar -- la pantalla no deja enviar
- * el formulario sin `source`/`verifiedAt` (CLAUDE.md -> "Valores
- * normativos"). No hay ningún dato sembrado: ninguna tasa en
- * docs/tax/tasas-iva.md está verificada todavía.
+ * Never called with an unverified value -- the screen won't submit the
+ * form without `source`/`verifiedAt` (CLAUDE.md -> "Normative values").
+ * No data is seeded: no rate in docs/tax/tasas-iva.md is verified yet.
  */
 export async function createTaxRate(input: CreateTaxRateInput): Promise<CreateTaxRateResult> {
   const userId = await requireAdmin();

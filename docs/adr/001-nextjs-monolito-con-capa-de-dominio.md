@@ -1,77 +1,83 @@
-# ADR-001: Monolito Next.js con capa de dominio pura
+# ADR-001: Next.js monolith with a pure domain layer
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-Había tres formas de estructurar esto:
+There were three ways to structure this:
 
-1. **API separada + frontend**, como `comprobify` y `comprobify-web`.
-2. **Monolito Next.js plano**, con toda la lógica en `src/lib/`, como `comprobify-web`.
-3. **Monolito con capa de dominio**, tomando de `salon-cloud` la separación en capas.
+1. **Separate API + frontend**, like `comprobify` and `comprobify-web`.
+2. **Flat Next.js monolith**, with all logic in `src/lib/`, like `comprobify-web`.
+3. **Monolith with a domain layer**, borrowing the layered separation from
+   `salon-cloud`.
 
-`comprobify-web` funciona bien con `src/lib/` plano porque es esencialmente un BFF:
-la lógica de negocio vive en la API de `comprobify` y el frontend solo la consume.
+`comprobify-web` works fine with a flat `src/lib/` because it's essentially a
+BFF: the business logic lives in the `comprobify` API and the frontend just
+consumes it.
 
-taxap es lo contrario. El motor tributario **es** el producto. La lógica de
-clasificación, el factor de proporcionalidad y el armado de casilleros son reglas
-con muchos casos límite, donde un error no produce un error visible sino una
-declaración incorrecta.
+taxap is the opposite. The tax engine **is** the product. The classification
+logic, the proportionality factor, and the assembly of form fields are rules
+with many edge cases, where a bug doesn't produce a visible error — it
+produces an incorrect filing.
 
-No hay consumidores externos de API previstos, así que separar en dos repos
-agregaría un contrato, un despliegue y una superficie de autenticación sin
-beneficio actual.
+No external API consumers are planned, so splitting into two repos would add
+a contract, a deployment, and an authentication surface with no current
+benefit.
 
-## Decisión
+## Decision
 
-**Un solo repositorio, aplicación Next.js, con una capa de dominio pura aislada.**
+**A single repository, a Next.js app, with an isolated pure domain layer.**
 
 ```
 src/
-├── domain/      ← sin I/O. No importa Prisma, ni next, ni fetch.
-├── services/    ← orquestación: domain + base de datos + IA
-├── lib/         ← infraestructura (db, auth, rbac, ia, almacenamiento)
-├── app/         ← rutas, Server Actions, UI
+├── domain/      ← no I/O. Doesn't import Prisma, next, or fetch.
+├── services/    ← orchestration: domain + database + AI
+├── lib/         ← infrastructure (db, auth, rbac, ai, storage)
+├── app/         ← routes, Server Actions, UI
 └── components/
 ```
 
-La regla dura: **`src/domain/` no importa nada de `@prisma/client` ni de `next`.**
-Recibe objetos planos y devuelve veredictos. Se prueba con Vitest sin base de datos
-ni servidor.
+The hard rule: **`src/domain/` imports nothing from `@prisma/client` or
+`next`.** It receives plain objects and returns verdicts. It's tested with
+Vitest, with no database and no server.
 
-Los tests de `tests/domain/` son el activo más valioso del repositorio.
+The tests under `tests/domain/` are the single most valuable asset in the
+repository.
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- El motor tributario se prueba exhaustivamente en milisegundos, sin infraestructura.
-- Cambiar de ORM, de framework o de UI no toca las reglas tributarias.
-- Si en el futuro hace falta exponer el motor como API, `domain` y `services` se
-  extraen sin reescribirlos.
+### Positive
+- The tax engine is exhaustively tested in milliseconds, with no
+  infrastructure.
+- Changing ORM, framework, or UI doesn't touch the tax rules.
+- If exposing the engine as an API becomes necessary in the future, `domain`
+  and `services` can be extracted without rewriting them.
 
-### Negativas
-- Una capa más de indirección que un `src/lib/` plano. Para el CRUD simple
-  (alta de contribuyentes, edición de perfil) es sobrecarga sin retorno — ese
-  código va directo en `services/` o en la Server Action, sin pasar por `domain/`.
-- La disciplina no se impone sola. Requiere una regla de lint que prohíba importar
-  `@prisma/client` desde `src/domain/`, o se erosiona en el tercer mes.
+### Negative
+- One more layer of indirection than a flat `src/lib/`. For simple CRUD
+  (creating a taxpayer, editing a profile) it's overhead with no return —
+  that code goes directly in `services/` or the Server Action, bypassing
+  `domain/`.
+- Discipline isn't self-enforcing. It requires a lint rule that forbids
+  importing `@prisma/client` from `src/domain/`, or it erodes by the third
+  month.
 
-## Alternativas consideradas
+## Alternatives considered
 
-**API separada en dos repos.** Se justificaría si se planeara vender acceso por API
-a otros sistemas contables. No es el caso hoy, y la capa de dominio deja esa puerta
-abierta sin pagar el costo ahora.
+**Separate API in two repos.** Would be justified if selling API access to
+other accounting systems were planned. That's not the case today, and the
+domain layer leaves that door open without paying the cost now.
 
-**Monolito plano estilo `comprobify-web`.** Más rápido de arrancar. Descartado
-porque mezcla las reglas tributarias con acceso a datos, y entonces probar
-"¿qué pasa si el factor de proporcionalidad da cero?" requiere una base de datos
-con datos montados. Eso hace que los tests no se escriban.
+**Flat monolith, `comprobify-web` style.** Faster to bootstrap. Discarded
+because it mixes tax rules with data access, so testing "what happens if the
+proportionality factor comes out to zero?" requires a database loaded with
+data. That's how tests end up not getting written.
 
-**Clean Architecture completa estilo `salon-cloud`** (Domain / Application /
-Infrastructure / Web como proyectos separados). Apropiado en .NET con varios
-equipos; excesivo para un repositorio de TypeScript con un desarrollador.
-Se toma la idea del núcleo puro, no la ceremonia.
+**Full Clean Architecture, `salon-cloud` style** (Domain / Application /
+Infrastructure / Web as separate projects). Appropriate in .NET with multiple
+teams; excessive for a single-developer TypeScript repository. The idea of a
+pure core is adopted; the ceremony isn't.

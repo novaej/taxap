@@ -1,30 +1,32 @@
-# Referencia tributaria
+# Tax reference
 
-Este directorio registra **de dónde salen los valores normativos que usa el
-sistema y cuándo se verificaron**, para que dentro de un año se pueda saber si
-siguen vigentes.
+This directory records **where the normative values the system uses come
+from, and when they were verified**, so that a year from now it's
+possible to tell whether they're still in effect.
 
-No es la normativa. Es el acompañamiento humano de las tablas
-`tax_rates` y de las tablas de definición del formulario (`form_fields`), que son las que el código consulta
+This is not the regulation itself. It's the human-readable companion to
+the `tax_rates` table and the form-definition tables (`form_fields`),
+which are what the code actually queries
 ([ADR-012](../adr/012-tasas-y-casilleros-como-datos-con-vigencia.md)).
 
-| Documento | Contenido |
+| Document | Content |
 |---|---|
-| [`formato-archivos-sri.md`](formato-archivos-sri.md) | Estructura de los `.txt` del portal. **Verificado contra archivos reales.** |
-| [`tasas-iva.md`](tasas-iva.md) | Historial de tasas con vigencia |
-| [`formulario-104.md`](formulario-104.md) | Catálogo de casilleros. **Verificado contra un formulario real.** Incluye decisiones abiertas. |
+| [`formato-archivos-sri.md`](formato-archivos-sri.md) | Structure of the portal's `.txt` files. **Verified against real files.** |
+| [`tasas-iva.md`](tasas-iva.md) | History of rates with effective dates |
+| [`formulario-104.md`](formulario-104.md) | Field catalog. **Verified against a real form.** Includes open decisions. |
 
-## Regla de este directorio
+## Rule for this directory
 
-Todo valor numérico lleva **fuente y fecha de verificación**. Un valor sin eso se
-marca `[VERIFICAR]` y no se carga a las tablas del sistema hasta confirmarse.
+Every numeric value carries **source and verification date**. A value
+without that is marked `[VERIFICAR]` and isn't loaded into the system's
+tables until confirmed.
 
-Es deliberado: es preferible que un dato falte de forma visible a que exista uno
-incorrecto con apariencia de verificado.
+This is deliberate: it's better for data to be visibly missing than for
+incorrect data to look verified.
 
-## Lo que no está aquí
+## What isn't here
 
-La **periodicidad de declaración** no es un dato normativo derivado en este sistema.
-El SRI la asigna a cada contribuyente y consta en su RUC; el usuario la ingresa al
-registrar el contribuyente y es editable. Ver
+**Filing periodicity** is not a normative value derived by this system.
+The SRI assigns it to each taxpayer and it's recorded on their RUC; the
+user enters it when registering the taxpayer and it's editable. See
 [ADR-012](../adr/012-tasas-y-casilleros-como-datos-con-vigencia.md).

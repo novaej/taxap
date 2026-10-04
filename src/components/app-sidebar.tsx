@@ -90,7 +90,7 @@ export function AppSidebar({
         {content}
       </aside>
 
-      {/* Mobile: botón hamburguesa + panel deslizante */}
+      {/* Mobile: hamburger button + sliding panel */}
       <div className="fixed top-3 left-3 z-40 md:hidden">
         {!mobileOpen && (
           <button

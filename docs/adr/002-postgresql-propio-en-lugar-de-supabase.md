@@ -1,65 +1,69 @@
-# ADR-002: PostgreSQL propio en lugar de Supabase
+# ADR-002: Self-hosted PostgreSQL instead of Supabase
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-El planteamiento inicial del producto especificaba Supabase (PostgreSQL + Auth +
-Storage) con Row-Level Security para el aislamiento entre clientes.
+The initial product plan specified Supabase (PostgreSQL + Auth + Storage)
+with Row-Level Security for isolation between clients.
 
-Supabase resuelve de entrada autenticación, almacenamiento de archivos y RLS atada
-a `auth.uid()`. Su ventaja distintiva es permitir que el navegador consulte la base
-de datos **directamente**, con la RLS como única barrera.
+Supabase solves authentication, file storage, and RLS tied to `auth.uid()`
+out of the box. Its distinguishing advantage is letting the browser query the
+database **directly**, with RLS as the only barrier.
 
-La arquitectura de taxap es Server Actions y renderizado en servidor
-([ADR-001](001-nextjs-monolito-con-capa-de-dominio.md)): **ninguna consulta sale
-del navegador.** Todas pasan por el servidor, que ya autenticó al usuario.
+taxap's architecture is Server Actions and server-side rendering
+([ADR-001](001-nextjs-monolito-con-capa-de-dominio.md)): **no query ever
+leaves the browser.** They all go through the server, which has already
+authenticated the user.
 
-Además, los datos son información tributaria de terceros. Un contador va a
-preguntar dónde reside la información fiscal de sus clientes.
+Moreover, the data is third-party tax information. An accountant is going to
+ask where their clients' tax data resides.
 
-## Decisión
+## Decision
 
-**PostgreSQL propio.** En desarrollo, en Docker (`docker-compose.yml`). En
-producción, un PostgreSQL gestionado — proveedor por definir
-(ver `NEXT_STEPS.md`).
+**Self-hosted PostgreSQL.** In development, in Docker
+(`docker-compose.yml`). In production, a managed PostgreSQL — provider to be
+determined (see `NEXT_STEPS.md`).
 
-Los componentes que Supabase habría aportado se cubren así:
+The pieces Supabase would have provided are covered as follows:
 
-| Necesidad | Solución |
+| Need | Solution |
 |---|---|
-| Autenticación | NextAuth v5 + bcryptjs |
-| RLS | PostgreSQL nativo, GUC transaccional ([ADR-004](004-rls-por-usuario-con-prisma.md)) |
-| Almacenamiento | Filesystem en local; almacenamiento compatible con S3 en producción |
+| Authentication | NextAuth v5 + bcryptjs |
+| RLS | Native PostgreSQL, transactional GUC ([ADR-004](004-rls-por-usuario-con-prisma.md)) |
+| Storage | Local filesystem in dev; S3-compatible storage in production |
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- Una sola infraestructura, un solo proveedor, un solo régimen de respaldos.
-- Control sobre dónde residen los datos tributarios, que es una pregunta comercial
-  real en este mercado.
-- Sin latencia entre la aplicación y una base de datos de otro proveedor.
-- Portable: mover el PostgreSQL entre proveedores es un `pg_dump`.
+### Positive
+- A single piece of infrastructure, a single provider, a single backup
+  regime.
+- Control over where tax data resides, which is a real commercial question
+  in this market.
+- No latency between the application and a database hosted by another
+  provider.
+- Portable: moving PostgreSQL between providers is a `pg_dump`.
 
-### Negativas
-- Hay que construir el registro, el inicio de sesión, la recuperación de contraseña
-  y la verificación de correo. Supabase los daba hechos. Estimado: varios días.
-- Hay que operar los respaldos, no vienen dados.
-- La RLS con un ORM requiere cuidado explícito
-  ([ADR-004](004-rls-por-usuario-con-prisma.md)); con Supabase venía integrada.
+### Negative
+- Registration, login, password recovery, and email verification all have to
+  be built. Supabase gave these out of the box. Estimated: several days.
+- Backups have to be operated; they don't come for free.
+- RLS with an ORM requires explicit care
+  ([ADR-004](004-rls-por-usuario-con-prisma.md)); with Supabase it came
+  built in.
 
-## Alternativas consideradas
+## Alternatives considered
 
-**Supabase completo.** Arranque más rápido. Descartado porque su beneficio
-principal —consultas directas desde el navegador— no se usa en esta arquitectura,
-y agrega un segundo proveedor con su propia facturación, respaldos y superficie
-de incidentes a cambio.
+**Full Supabase.** Faster to bootstrap. Discarded because its main
+benefit — direct queries from the browser — isn't used in this
+architecture, and it adds a second provider with its own billing, backups,
+and incident surface in exchange.
 
-**Supabase solo para autenticación, datos propios.** Evita construir el módulo de
-autenticación, pero acopla el inicio de sesión a un proveedor externo y obliga a
-sincronizar identidades entre dos sistemas. Poco beneficio para el acoplamiento
-que introduce.
+**Supabase for authentication only, own data.** Avoids building the auth
+module, but couples login to an external provider and forces identity
+synchronization between two systems. Little benefit for the coupling it
+introduces.

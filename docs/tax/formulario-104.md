@@ -1,243 +1,259 @@
-# Formulario 104 — Casilleros y relación con los resultados
+# Form 104 — Fields and relationship to results
 
-**Fuente:** comprobante de declaración de IVA descargado del portal del SRI
-(obligación `2011 DECLARACION DE IVA`, período agosto 2026, 6 páginas).
-**Verificado:** 2026-09-20. El PDF original no se guarda en el proyecto; la copia local
-vive en `samples/`, fuera del repositorio, porque contiene datos tributarios reales.
+**Source:** VAT filing receipt downloaded from the SRI portal
+(obligation `2011 DECLARACION DE IVA`, August 2026 period, 6 pages).
+**Verified:** 2026-09-20. The original PDF is not stored in the project; the
+local copy lives in `samples/`, outside the repository, because it
+contains real tax data.
 
-> **El formulario es el destino de los resultados, no una fuente de cálculo.**
-> taxap calcula con su propia lógica (`src/domain/`) a partir de los comprobantes y de
-> lo que el usuario marca. Cada resultado se presenta junto al casillero donde el
-> usuario debe ingresarlo:
+> **The form is the destination of the results, not a calculation source.**
+> taxap calculates with its own logic (`src/domain/`) from the vouchers and
+> what the user marks. Each result is presented next to the field where
+> the user must enter it:
 >
 > ```
-> Adquisiciones con derecho a crédito tributario (valor bruto) — 500 = 1,000.00
+> Purchases with the right to tax credit (gross value) — 500 = 1,000.00
 > ```
 >
-> El administrador sube el formulario una vez y el sistema guarda su catálogo completo
-> de campos. Al calcular, el sistema **relaciona cada resultado con el campo que le
-> corresponde**, aproximadamente, por su significado; el código no conoce números de
-> casillero ([ADR-015](../adr/015-definicion-del-formulario-desde-pdf.md)).
-> Las fórmulas que el formulario imprime se transcriben aquí como referencia para quien
-> implementa el dominio; el sistema no las lee ni las ejecuta. Los valores del PDF de
-> muestra no se usan para nada.
+> The admin uploads the form once and the system saves its complete field
+> catalog. When calculating, the system **relates each result to the
+> corresponding field**, approximately, by its meaning; the code knows
+> nothing about field codes ([ADR-015](../adr/015-definicion-del-formulario-desde-pdf.md)).
+> The formulas printed on the form are transcribed here as reference for
+> whoever implements the domain; the system never reads or executes them.
+> The values on the sample PDF are not used for anything.
 
-**El MVP cubre solo el formulario mensual, y solo lo básico de ventas y compras.**
+**The MVP covers only the monthly form, and only the basics of sales and
+purchases.**
 
 ---
 
-## Cómo está construido
+## How it's built
 
-Cada fila del formulario tiene una descripción y uno de tres formatos:
+Each row of the form has a description and one of three formats:
 
-| Formato | Ejemplo | Columnas |
+| Format | Example | Columns |
 |---|---|---|
-| **Terna** | `500 · 510 · 520` | Valor bruto · Valor neto · Impuesto generado |
-| **Valor único** | `499` | Un solo casillero |
-| **Conteo o texto** | `111`, `881` | Cantidad de comprobantes, o `SI`/`NO` |
+| **Triple** | `500 · 510 · 520` | Gross value · Net value · Tax generated |
+| **Single value** | `499` | A single field |
+| **Count or text** | `111`, `881` | Number of vouchers, or `SI`/`NO` |
 
-**Valor neto = valor bruto − notas de crédito.** Las notas de crédito restan en el
-neto, no cuentan como una compra o venta más
+**Net value = gross value − credit notes.** Credit notes subtract from
+the net amount; they don't count as an additional purchase or sale
 ([ADR-010](../adr/010-tratamiento-por-tipo-de-comprobante.md)).
 
-Las ternas siguen un patrón numérico, útil para validar la lectura del PDF:
-`401·411·421`, `500·510·520`, `502·512·522`.
+The triples follow a numeric pattern, useful for validating the PDF
+reading: `401·411·421`, `500·510·520`, `502·512·522`.
 
-Secciones, en orden:
+Sections, in order:
 
-| Sección | Casilleros | MVP |
+| Section | Fields | MVP |
 |---|---|---|
-| Encabezado y decreto turístico | 203 | Fuera |
-| **Resumen de ventas** | 401–454 | **Sí (básico)** |
-| Liquidación del IVA en el mes | 480–499, 111, 113 | Fuera |
-| **Resumen de adquisiciones y pagos** | 500–565, 115–119 | **Sí (básico)** |
-| Resumen impositivo | 601–624 | Fuera |
-| Subtotal a pagar y consolidado | 620–699, 859 | Fuera |
-| Devolución ISD a exportadores | 700–702 | Fuera |
-| Agente de retención de IVA | 721–802 | Fuera |
-| Pagos, imputación y valores a pagar | 880–999 | Fuera |
+| Header and tourism decree | 203 | Out |
+| **Sales summary** | 401–454 | **Yes (basic)** |
+| VAT settlement for the month | 480–499, 111, 113 | Out |
+| **Purchases and payments summary** | 500–565, 115–119 | **Yes (basic)** |
+| Tax summary | 601–624 | Out |
+| Subtotal due and consolidated | 620–699, 859 | Out |
+| ISD refund for exporters | 700–702 | Out |
+| VAT withholding agent | 721–802 | Out |
+| Payments, application, and amounts due | 880–999 | Out |
 
 ---
 
-## Resultados del MVP y casillero esperado
+## MVP results and expected field
 
-Cada resultado tiene una **clave estable** y una **descripción estructurada** definidas
-en el dominio:
+Each result has a **stable key** and a **structured description**
+defined in the domain:
 
-| Atributo | Valores |
+| Attribute | Values |
 |---|---|
-| Operación | venta · compra |
-| Tratamiento | gravado · 0% con derecho a crédito · 0% sin derecho · exportación de bienes · exportación de servicios · no objeto o exento · con derecho a crédito · sin derecho a crédito |
-| Columna | bruto · neto · impuesto |
-| Activo fijo | no (el MVP no los distingue) |
+| Operation | sale · purchase |
+| Treatment | taxed · 0% with right to credit · 0% without right · export of goods · export of services · non-object or exempt · with right to credit · without right to credit |
+| Column | gross · net · tax |
+| Fixed asset | no (the MVP doesn't distinguish them) |
 
-El sistema compara esa descripción con los nombres oficiales del catálogo del
-formulario y sugiere el campo más cercano
-([ADR-015](../adr/015-definicion-del-formulario-desde-pdf.md)). La relación es una
-aproximación: se muestra siempre con el nombre oficial del campo y **con la razón por la
-que se ubicó ahí**. Nadie la corrige a mano.
+The system compares that description against the official names in the
+form's catalog and suggests the closest field
+([ADR-015](../adr/015-definicion-del-formulario-desde-pdf.md)). The
+relationship is an approximation: it's always shown with the field's
+official name and **the reason it was placed there**. Nobody corrects it
+by hand.
 
-**Las columnas "Casillero" de las tablas siguientes no las usa el sistema.** Son el
-casillero que se **espera** para cada resultado en esta versión del formulario, y sirven
-de **conjunto de pruebas del emparejamiento**: si un cambio de reglas o un formulario
-nuevo hace que un resultado ya no caiga donde se espera, la prueba lo detecta.
+**The "Field" columns in the tables below are not used by the system.**
+They are the field **expected** for each result in this version of the
+form, and they serve as a **test set for the matching logic**: if a rule
+change or a new form causes a result to no longer land where expected,
+the test catches it.
 
-### Ventas — desde `invoices_issued`
+### Sales — from `invoices_issued`
 
-| Clave del resultado | Bruto · Neto · Impuesto | Descripción en el formulario | Qué lo alimenta |
+| Result key | Gross · Net · Tax | Description on the form | What feeds it |
 |---|---|---|---|
-| `SALES_TAXED` | 401 · 411 · 421 | Ventas locales (excluye activos fijos) gravadas tarifa diferente de cero | Comprobantes con `IVA > 0` |
-| `SALES_ZERO_NO_CREDIT` | 403 · 413 | Ventas locales gravadas tarifa 0% que **no** dan derecho a crédito tributario | Marcadas por el usuario |
-| `SALES_ZERO_WITH_CREDIT` | 405 · 415 | Ventas locales gravadas tarifa 0% que **sí** dan derecho a crédito tributario | Marcadas por el usuario |
-| `EXPORT_GOODS` | 407 · 417 | Exportaciones de bienes | Marcadas por el usuario |
-| `EXPORT_SERVICES` | 408 · 418 | Exportaciones de servicios y/o derechos | Marcadas por el usuario |
-| `SALES_NON_OBJECT_EXEMPT` | 431 · 441 | Transferencias no objeto o exentas de IVA | Marcadas por el usuario |
+| `SALES_TAXED` | 401 · 411 · 421 | Local sales (excluding fixed assets) taxed at a rate other than zero | Vouchers with `IVA > 0` |
+| `SALES_ZERO_NO_CREDIT` | 403 · 413 | Local sales taxed at 0% that do **not** carry the right to tax credit | Marked by the user |
+| `SALES_ZERO_WITH_CREDIT` | 405 · 415 | Local sales taxed at 0% that **do** carry the right to tax credit | Marked by the user |
+| `EXPORT_GOODS` | 407 · 417 | Exports of goods | Marked by the user |
+| `EXPORT_SERVICES` | 408 · 418 | Exports of services and/or rights | Marked by the user |
+| `SALES_NON_OBJECT_EXEMPT` | 431 · 441 | Transfers non-object or exempt from VAT | Marked by the user |
 
-Neto = bruto − notas de crédito emitidas. La columna de impuesto solo aplica a
+Net = gross − issued credit notes. The tax column only applies to
 `SALES_TAXED`.
 
-### Adquisiciones — desde `invoices_received`, solo `IVA > 0`
+### Purchases — from `invoices_received`, `IVA > 0` only
 
-| Clave del resultado | Bruto · Neto · Impuesto | Descripción en el formulario | Qué lo alimenta |
+| Result key | Gross · Net · Tax | Description on the form | What feeds it |
 |---|---|---|---|
-| `PURCHASES_WITH_CREDIT` | 500 · 510 · 520 | Adquisiciones y pagos (excluye activos fijos) gravados tarifa diferente de cero **con** derecho a crédito tributario | `iva_category = CREDIT` |
-| `PURCHASES_NO_CREDIT` | 502 · 512 · 522 | Otras adquisiciones y pagos gravados tarifa diferente de cero **sin** derecho a crédito tributario | `iva_category = COST_EXPENSE` y `NON_DEDUCTIBLE` `[VERIFICAR]` |
+| `PURCHASES_WITH_CREDIT` | 500 · 510 · 520 | Purchases and payments (excluding fixed assets) taxed at a rate other than zero **with** the right to tax credit | `iva_category = CREDIT` |
+| `PURCHASES_NO_CREDIT` | 502 · 512 · 522 | Other purchases and payments taxed at a rate other than zero **without** the right to tax credit | `iva_category = COST_EXPENSE` and `NON_DEDUCTIBLE` `[VERIFICAR]` |
 
-### Factor y crédito
+### Factor and credit
 
-| Clave del resultado | Casillero | Descripción en el formulario |
+| Result key | Field | Description on the form |
 |---|---|---|
-| `PROPORTIONALITY_FACTOR` | 563 | Factor de proporcionalidad para crédito tributario |
-| `CREDIT_APPLICABLE` | 564 | Crédito tributario aplicable en este período |
-| `VAT_NOT_CREDITED` | 565 | Valor de IVA no considerado como crédito tributario por factor de proporcionalidad |
+| `PROPORTIONALITY_FACTOR` | 563 | Proportionality factor for tax credit |
+| `CREDIT_APPLICABLE` | 564 | Tax credit applicable for this period |
+| `VAT_NOT_CREDITED` | 565 | Amount of VAT not considered as tax credit due to the proportionality factor |
 
-Es posible que el portal calcule estos tres a partir de lo ingresado en las ventas y
-compras; en ese caso el sistema los entrega como **valor de contraste**, no como algo
-que el usuario deba teclear `[VERIFICAR]`.
+It's possible the portal calculates these three from what's entered in
+sales and purchases; in that case the system provides them as a
+**cross-check value**, not something the user has to type in
+`[VERIFICAR]`.
 
-### Sin casillero definitivo
+### With no definitive field
 
-| Clave del resultado | Qué es | Situación |
+| Result key | What it is | Status |
 |---|---|---|
-| `PURCHASES_ZERO_VAT` | Total de compras con `IVA = 0` | No afecta al crédito de IVA. Se muestra como total informativo. Como el sistema relaciona por significado, puede sugerir el campo más cercano (507, con 508, 531 y 532 como alternativas) **marcado como aproximado**; el usuario decide si lo usa. |
+| `PURCHASES_ZERO_VAT` | Total purchases with `IVA = 0` | Doesn't affect the VAT credit. Shown as an informational total. Since the system relates by meaning, it may suggest the closest field (507, with 508, 531, and 532 as alternatives) **marked as approximate**; the user decides whether to use it. |
 
-Un resultado sin casillero identificado es válido: se muestra sin código y no bloquea
-nada.
+A result with no identified field is valid: it's shown with no code and
+doesn't block anything.
 
-### Lo que estos resultados dejan listo para Renta
+### What these results leave ready for Income Tax
 
-Renta queda fuera del MVP, pero los resultados ya llevan lo que después sumará:
+Income Tax is outside the MVP, but the results already carry what will
+later feed into it:
 
-- Base de compras y IVA por destino (`PURCHASES_WITH_CREDIT`, `PURCHASES_NO_CREDIT`).
-- **El IVA que se vuelve costo:** el de `PURCHASES_NO_CREDIT` más `VAT_NOT_CREDITED`.
-- Total de ventas por destino.
-- `PURCHASES_ZERO_VAT`, que sin IVA no importa para el crédito pero sí es un gasto
-  potencial para Renta.
+- Purchase base and VAT by destination (`PURCHASES_WITH_CREDIT`,
+  `PURCHASES_NO_CREDIT`).
+- **The VAT that becomes a cost:** that of `PURCHASES_NO_CREDIT` plus
+  `VAT_NOT_CREDITED`.
+- Total sales by destination.
+- `PURCHASES_ZERO_VAT`, which doesn't matter for the credit since it
+  carries no VAT, but is a potential expense for Income Tax.
 
 ---
 
-## El factor de proporcionalidad
+## The proportionality factor
 
-Fórmula de referencia (no se ejecuta; la lógica vive en `src/domain/`):
+Reference formula (not executed; the logic lives in `src/domain/`):
 
 ```
 563 = (411+412+420+435+415+416+417+418) / 419
 564 = (520+521+534+560+523+524+525+526−527) × 563
 ```
 
-En el alcance del MVP el numerador es `411 + 415 + 417 + 418` y el crédito es
-`520 × 563`.
+Within the MVP's scope, the numerator is `411 + 415 + 417 + 418` and the
+credit is `520 × 563`.
 
-**Exportaciones (417, 418) y ventas 0% con derecho a crédito (415, 416) cuentan en el
-numerador.** Un contribuyente cuyas ventas son solo exportaciones de servicios tiene
-factor **1.0000**. El factor solo es cero si todas las ventas caen en destinos que no
-entran al numerador (403, 404, 431).
+**Exports (417, 418) and 0% sales with the right to credit (415, 416)
+count in the numerator.** A taxpayer whose sales are only exports of
+services has a factor of **1.0000**. The factor is only zero if all
+sales fall into destinations that don't enter the numerator (403, 404,
+431).
 
-> Documentos anteriores decían que con ventas sin IVA el factor era cero. Era
-> incorrecto. Es un hecho sobre la lógica que el dominio debe implementar, no un dato
-> que el sistema tome del formulario.
+> Earlier documents said that sales with no VAT gave a zero factor. That
+> was incorrect. It's a fact about the logic the domain must implement,
+> not data the system takes from the form.
 
-Formato: **4 decimales** (`1.0000`).
+Format: **4 decimal places** (`1.0000`).
 
-**Bloqueo:** el factor no se calcula mientras existan ventas con `IVA = 0` sin destino
-marcado por el usuario. Un factor sobre ventas sin clasificar sería un número con
-apariencia de exacto.
+**Blocking:** the factor is not calculated while there are sales with
+`IVA = 0` whose destination hasn't been marked by the user. A factor
+computed over unclassified sales would be a number that only looks
+exact.
 
-**Caso pendiente:** sin ventas en el período el denominador es cero y el factor es
-una división 0/0. Hay que definir qué resultado ofrece el sistema `[VERIFICAR]`.
-
----
-
-## Decisiones tomadas
-
-**Ventas con `IVA = 0`: las marca el usuario en una tabla.** Tras cargar los
-comprobantes emitidos, el sistema los muestra y el usuario marca el destino de cada
-venta con `IVA = 0`, una por una o en bloque. Las de `IVA > 0` van solas a
-`SALES_TAXED`. El archivo de emitidos no trae cliente ni concepto, así que no hay
-reglas aprendidas: el criterio siempre es del usuario. Cada marca queda en la
-bitácora ([ADR-013](../adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md)).
-
-**Compras con `IVA = 0`: sin decisión por comprobante.** No afectan al crédito, así que
-no se reparten entre 507, 508, 531 y 532. Se conservan los comprobantes y se muestra un
-total informativo (`PURCHASES_ZERO_VAT`), con un casillero aproximado sugerido.
-
-**Solo lo básico de ventas y compras.** El sistema entrega qué poner en ventas y en
-adquisiciones. No calcula la liquidación, los saldos de crédito del mes anterior ni el
-total a pagar.
-
-**Sin `attribution`.** El modelo de datos tenía una categoría de atribución
-(directa gravada, directa exenta, prorrateable). Se elimina: el formulario ya la
-expresa con 500 (con derecho a crédito) y 502 (sin derecho), más el factor. La
-clasificación de una compra es **500 o 502**, y la decide el usuario o la regla
-aprendida, no un tercer concepto. Que una compra atribuible solo a ventas exentas
-corresponda al 502 es criterio del usuario `[VERIFICAR]`.
-
-**Solo el formulario mensual.** El semestral es otro formulario, con casilleros
-propios, y queda fuera. Un contribuyente semestral puede registrarse, pero el MVP no
-genera su pre-declaración y lo indica.
+**Pending case:** with no sales in the period, the denominator is zero
+and the factor is a 0/0 division. What result the system should offer
+still needs to be defined `[VERIFICAR]`.
 
 ---
 
-## Fuera del MVP
+## Decisions made
 
-| Casilleros | Concepto | Razón |
+**Sales with `IVA = 0`: marked by the user in a table.** After the
+issued vouchers are loaded, the system displays them and the user marks
+the actual destination of each sale with `IVA = 0`, one at a time or in
+bulk. Sales with `IVA > 0` go straight to `SALES_TAXED` on their own.
+The issued-invoices file carries no customer or description, so there
+are no learned rules: the criterion is always the user's. Every mark is
+logged in the audit log ([ADR-013](../adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md)).
+
+**Purchases with `IVA = 0`: no per-voucher decision.** They don't affect
+the credit, so they aren't split among 507, 508, 531, and 532. The
+vouchers are kept and an informational total is shown
+(`PURCHASES_ZERO_VAT`), with a suggested approximate field.
+
+**Only the basics of sales and purchases.** The system delivers what to
+enter for sales and purchases. It doesn't calculate the settlement, the
+prior month's credit balances, or the total due.
+
+**No `attribution`.** The data model used to have an attribution
+category (direct taxed, direct exempt, proratable). It's removed: the
+form already expresses this with 500 (with right to credit) and 502
+(without right), plus the factor. The classification of a purchase is
+**500 or 502**, decided by the user or the learned rule, not a third
+concept. Whether a purchase attributable only to exempt sales belongs in
+502 is up to the user's judgment `[VERIFICAR]`.
+
+**Only the monthly form.** The semiannual one is a different form, with
+its own fields, and is out of scope. A semiannual taxpayer can be
+registered, but the MVP doesn't generate their pre-filing and says so.
+
+---
+
+## Out of the MVP
+
+| Fields | Concept | Reason |
 |---|---|---|
-| 402·412·422, 404·414, 406·416, 501·511·521 | Activos fijos | El archivo no distingue un activo fijo de otra compra. Todo va a 401 / 500; el usuario ajusta a mano. |
-| 410·420·430, 530·533·534 | Tarifa variable | Requeriría derivar la tasa de `IVA / subtotal`, que [ADR-008](../adr/008-solo-totales-sin-detalle-de-lineas.md) descarta. |
-| 425·435·445, 540·550·560 | Tarifa 5% | Ídem. |
-| 503–505, 523–525 | Importaciones | Se documentan con la declaración aduanera. |
-| 423, 424, 526, 527 | Ajustes por diferencia de tarifa | Requieren detalle que el archivo no trae. |
-| 442, 443, 453, 543, 544, 554 | Notas de crédito por compensar próximo mes | Caso límite de ADR-010. |
-| 434, 444, 454, 535, 545, 555 | Reembolsos como intermediario | Informativo. |
-| 506–508, 516–518, 531–532, 541–542 | Compras con `IVA = 0` | Sin efecto en el crédito. |
-| 409·419·429, 509·519·529 | Totales | El portal los suma `[VERIFICAR]`. No son "qué poner", son consecuencia. |
-| 111–119 | Conteos de comprobantes | Informativo. `[VERIFICAR]` si son obligatorios. |
-| 480–499 | Liquidación del mes | Fuera de "qué poner en ventas y compras". |
-| 601–625 | Resumen impositivo, **saldos de crédito de meses anteriores (605)**, compensaciones, ajustes | Los saldos vienen de la declaración anterior y no de los comprobantes. Fuera. |
-| 620–699, 859 | Subtotal, retenciones en ventas, total consolidado | Fuera. |
-| 700–802 | ISD, agente de retención de IVA | Otro rol tributario. |
-| 880–999 | Pagos, intereses, multas, pago diferido COVID | Posteriores a la declaración. |
-| 203 | Decreto de tarifa turística | Selector; no aplica. |
+| 402·412·422, 404·414, 406·416, 501·511·521 | Fixed assets | The file doesn't distinguish a fixed asset from another purchase. Everything goes to 401 / 500; the user adjusts by hand. |
+| 410·420·430, 530·533·534 | Variable rate | Would require deriving the rate from `IVA / subtotal`, which [ADR-008](../adr/008-solo-totales-sin-detalle-de-lineas.md) rules out. |
+| 425·435·445, 540·550·560 | 5% rate | Same as above. |
+| 503–505, 523–525 | Imports | Documented via the customs declaration. |
+| 423, 424, 526, 527 | Rate-difference adjustments | Require detail the file doesn't carry. |
+| 442, 443, 453, 543, 544, 554 | Credit notes to offset next month | Edge case of ADR-010. |
+| 434, 444, 454, 535, 545, 555 | Reimbursements as an intermediary | Informational. |
+| 506–508, 516–518, 531–532, 541–542 | Purchases with `IVA = 0` | No effect on the credit. |
+| 409·419·429, 509·519·529 | Totals | The portal sums these `[VERIFICAR]`. They're not "what to enter," they're a consequence. |
+| 111–119 | Voucher counts | Informational. `[VERIFICAR]` whether mandatory. |
+| 480–499 | Settlement for the month | Outside "what to enter in sales and purchases." |
+| 601–625 | Tax summary, **prior months' credit balances (605)**, offsets, adjustments | Balances come from the previous filing, not from the vouchers. Out. |
+| 620–699, 859 | Subtotal, sales withholdings, consolidated total | Out. |
+| 700–802 | ISD, VAT withholding agent | A different tax role. |
+| 880–999 | Payments, interest, penalties, deferred COVID payment | Happen after the filing. |
+| 203 | Tourism rate decree | A selector; not applicable. |
 
-### Dos casos a revisar más adelante
+### Two cases to revisit later
 
-- **609** (retenciones de IVA que le han sido efectuadas): los comprobantes de
-  retención recibidos podrían alimentarlo. [ADR-010](../adr/010-tratamiento-por-tipo-de-comprobante.md)
-  los trata como "no aplica" para adquisiciones, correcto para 500/502, pero no
-  significa que no valgan nada. Requiere un archivo real con un comprobante de
-  retención `[VERIFICAR]`.
-- **605** y los demás saldos: si se decide cubrir la liquidación, hará falta un
-  mecanismo de arrastre entre períodos o de ingreso manual.
+- **609** (VAT withholdings applied to the taxpayer): received
+  withholding vouchers could feed this. [ADR-010](../adr/010-tratamiento-por-tipo-de-comprobante.md)
+  treats them as "not applicable" for purchases, which is correct for
+  500/502, but that doesn't mean they're worth nothing. Needs a real
+  file with a withholding voucher `[VERIFICAR]`.
+- **605** and the other balances: if covering the settlement is decided
+  on, a carry-forward mechanism between periods or manual entry will be
+  needed.
 
 ---
 
-## Pendiente de verificar
+## Pending verification
 
-- [ ] Si el portal calcula 563, 564 y 565 a partir de las ventas y compras ingresadas
-- [ ] Si el portal suma los totales 409/419/429 y 509/519/529
-- [ ] Valor del factor cuando no hay ventas (denominador cero)
-- [ ] Tratamiento de `NON_DEDUCTIBLE` frente a 502
-- [ ] Criterio para compras atribuibles solo a ventas exentas
-- [ ] Si los comprobantes de retención recibidos alimentan el 609
-- [ ] Fecha desde la que rige esta versión del formulario: un PDF de muestra solo dice
-      el período de la declaración, no desde cuándo rige el formulario
+- [ ] Whether the portal calculates 563, 564, and 565 from the entered
+      sales and purchases
+- [ ] Whether the portal sums totals 409/419/429 and 509/519/529
+- [ ] Factor value when there are no sales (zero denominator)
+- [ ] Treatment of `NON_DEDUCTIBLE` relative to 502
+- [ ] Criterion for purchases attributable only to exempt sales
+- [ ] Whether received withholding vouchers feed field 609
+- [ ] Effective date of this form version: a sample PDF only states the
+      filing period, not since when the form has been in effect

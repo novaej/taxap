@@ -1,10 +1,11 @@
 /**
- * NextAuth v5: correo y contraseña (docs/guides/code-flow.md -> Cuentas y acceso), sesión JWT.
+ * NextAuth v5: email and password (docs/guides/code-flow.md -> Accounts and
+ * access), JWT session.
  *
- * `users` no tiene RLS (data-model.md -> "Tablas bajo RLS" la excluye
- * explícitamente), así que authorize() consulta `prisma` directo, sin pasar
- * por withUser()/asAdmin() -- no hace falta y todavía no hay sesión en ese
- * punto de todas formas.
+ * `users` has no RLS (data-model.md -> "Tables under RLS" explicitly
+ * excludes it), so authorize() queries `prisma` directly, without going
+ * through withUser()/asAdmin() -- there's no need to, and there's no
+ * session yet at this point anyway.
  */
 
 import NextAuth from 'next-auth';

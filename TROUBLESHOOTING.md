@@ -1,25 +1,25 @@
-# Problemas frecuentes
+# Common issues
 
-Para la puesta en marcha paso a paso, ver [`GETTING_STARTED.md`](GETTING_STARTED.md).
+For the step-by-step setup, see [`GETTING_STARTED.md`](GETTING_STARTED.md).
 
-## Base de datos
+## Database
 
-**`connection refused` en el puerto 5432.** Hay otro PostgreSQL local ocupando el
-puerto. Revisar qué hay corriendo con `docker ps` antes de crear un contenedor
-nuevo — probablemente ya existe uno que se puede reutilizar.
+**`connection refused` on port 5432.** Another local PostgreSQL is
+occupying the port. Check what's running with `docker ps` before creating
+a new container — there's probably already one you can reuse.
 
-**El registro falla / `plan_code` no tiene a qué apuntar.** No se corrió
-`npm run db:seed`. `users.plan_code` es una FK a `plans.code`.
+**Registration fails / `plan_code` has nothing to point to.**
+`npm run db:seed` wasn't run. `users.plan_code` is an FK to `plans.code`.
 
 ## Row-Level Security (RLS)
 
-**Verificación de que la RLS funciona.** No es opcional. Antes de construir
-sobre esta base, confirmar que **ambas** banderas están activas en cada
-tabla con datos de contribuyentes — `ENABLE ROW LEVEL SECURITY` sola no
-alcanza si la app se conecta con el mismo rol que es dueño de las tablas
-(que es el caso aquí: `taxap` corre las migraciones y también sirve las
-consultas). Sin `FORCE`, Postgres exime al dueño de sus propias políticas y
-las consultas devuelven todo sin filtrar, en silencio:
+**Verifying that RLS works.** This is not optional. Before building on
+top of this foundation, confirm that **both** flags are active on every
+table holding taxpayer data — `ENABLE ROW LEVEL SECURITY` alone isn't
+enough if the app connects with the same role that owns the tables
+(which is the case here: `taxap` runs the migrations and also serves the
+queries). Without `FORCE`, Postgres exempts the owner from its own
+policies and queries silently return everything, unfiltered:
 
 ```bash
 docker exec postgres18 psql -U postgres -d taxap_dev -c "
@@ -31,94 +31,95 @@ docker exec postgres18 psql -U postgres -d taxap_dev -c "
     'classification_events', 'period_results'
   );
 "
-# las tres columnas deben ser 't' en cada fila
+# all three columns must be 't' in every row
 ```
 
-Con datos de dos contribuyentes distintos, confirmar que un usuario no ve los
-del otro ni siquiera pasando el identificador directo — el envoltorio en
-[`src/lib/db.ts`](src/lib/db.ts) (`withUser`/`asAdmin`) es el único camino
-permitido para tocar estas tablas. **Si esta prueba no pasa, el aislamiento
-entre clientes no existe.** Ver [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
+With data from two different taxpayers, confirm that one user never sees
+the other's, even by passing the identifier directly — the wrapper in
+[`src/lib/db.ts`](src/lib/db.ts) (`withUser`/`asAdmin`) is the only
+allowed path for touching these tables. **If this test fails, isolation
+between clients does not exist.** See [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
 
-> Pendiente: no hay todavía un script de regresión permanente para esto —
-> cada verificación se hizo ad hoc y no quedó como artefacto reproducible.
-> Ver [`NEXT_STEPS.md`](NEXT_STEPS.md).
+> Pending: there's no permanent regression script for this yet — every
+> check so far has been done ad hoc and never left as a reproducible
+> artifact. See [`NEXT_STEPS.md`](NEXT_STEPS.md).
 
-**Las consultas devuelven datos de otros usuarios.** El usuario de base de datos es
-superusuario, falta `FORCE ROW LEVEL SECURITY` en la tabla, o el código está
-consultando fuera del envoltorio que fija `app.current_user_id`.
-Ver [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
+**Queries return other users' data.** The database user is a superuser,
+`FORCE ROW LEVEL SECURITY` is missing on the table, or the code is
+querying outside the wrapper that sets `app.current_user_id`.
+See [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
 
-**Las consultas no devuelven nada estando los datos ahí.** `app.current_user_id`
-está fijada con un valor que no corresponde, o la transacción envolvente no está
-abierta — `withUser()` debe correr el `SET` y la consulta dentro del mismo
-`$transaction`, nunca como llamadas separadas contra una conexión pooled.
+**Queries return nothing even though the data is there.**
+`app.current_user_id` is set to a value that doesn't match, or the
+surrounding transaction isn't open — `withUser()` must run the `SET` and
+the query inside the same `$transaction`, never as separate calls against
+a pooled connection.
 
-**Un `DELETE` sobre `taxpayers` falla con "record not found" aunque el `SELECT`
-en la misma transacción sí ve la fila.** No es un bug de RLS: la tabla
-`taxpayers` solo tiene políticas para `SELECT`/`INSERT`/`UPDATE`
-(`prisma/migrations/*_add_rls/migration.sql`), ningún `DELETE` — ni siquiera
-para `is_system_admin()`. Con `FORCE ROW LEVEL SECURITY`, la ausencia de
-política para un comando bloquea ese comando por completo para cualquier
-fila, no lo filtra a cero filas visibles. Es deliberado: un contribuyente no
-se borra desde la aplicación. Si hace falta borrar uno en desarrollo, se
-hace a mano con el rol superusuario de Postgres (nunca con el rol `taxap`).
+**A `DELETE` on `taxpayers` fails with "record not found" even though the
+`SELECT` in the same transaction does see the row.** This isn't an RLS
+bug: the `taxpayers` table only has policies for `SELECT`/`INSERT`/`UPDATE`
+(`prisma/migrations/*_add_rls/migration.sql`), none for `DELETE` — not
+even for `is_system_admin()`. With `FORCE ROW LEVEL SECURITY`, the absence
+of a policy for a command blocks that command entirely for every row,
+rather than filtering it down to zero visible rows. This is deliberate: a
+taxpayer is never deleted from the application. If one needs to be deleted
+in development, it's done by hand with Postgres's superuser role (never
+with the `taxap` role).
 
-**Ni siquiera el superusuario puede borrar una fila de `classification_events`.**
-A diferencia de lo anterior, esto no es RLS (que el superusuario sí ignora) —
-es un disparador real, `reject_classification_event_mutation()`
-(`prisma/migrations/20260930113100_add_rls/migration.sql`, ADR-013), que
-rechaza incondicionalmente cualquier `DELETE`/`UPDATE` sobre esa tabla para
-cualquier rol. Un `taxPeriod` con al menos un evento registrado
-(cualquier cambio de estado: `lockPeriod`, `reopenPeriod`, el nuevo
-`updatePeriodStatus`) queda, por lo tanto, permanentemente imborrable, y con
-él su `taxpayer`. Es intencional — la bitácora es append-only de verdad, no
-solo "difícil de editar desde la app" — pero importa saberlo antes de sembrar
-datos de prueba contra la base real: cualquier dato que dispare un evento de
-clasificación no se puede limpiar después, ni a mano. Para pruebas
-descartables, evitar transiciones de estado sobre contribuyentes/períodos que
-no se puedan dejar así para siempre.
+**Not even the superuser can delete a row from `classification_events`.**
+Unlike the above, this isn't RLS (which the superuser does bypass) — it's
+an actual trigger, `reject_classification_event_mutation()`
+(`prisma/migrations/20260930113100_add_rls/migration.sql`, ADR-013), which
+unconditionally rejects any `DELETE`/`UPDATE` on that table for any role.
+A `taxPeriod` with at least one logged event (any status change:
+`lockPeriod`, `reopenPeriod`, the newer `updatePeriodStatus`) therefore
+becomes permanently undeletable, and with it its `taxpayer`. This is
+intentional — the audit log is truly append-only, not just "hard to edit
+from the app" — but it matters to know before seeding test data against
+the real database: any data that triggers a classification event can
+never be cleaned up afterward, not even by hand. For disposable test
+data, avoid status transitions on taxpayers/periods that you can't leave
+in place forever.
 
-## Extracción del PDF del formulario
+## Form PDF extraction
 
-**Antes de ampliar `LABEL_LOOKBACK_LINES` o tocar `BOILERPLATE_LINE` en
-`src/services/forms/pdf-field-extractor.ts`, volver a probar contra un
-PDF real.** La primera versión de ese código tomaba todo el texto desde
-el campo anterior como posible nombre del campo, sin límite -- y en una
-prueba real contra el PDF de muestra, eso bastó para que el RUC y la
-razón social del contribuyente (repetidos en la cabecera de cada página)
-terminaran escritos en `form_fields.label` antes de que alguien lo
-notara. Se corrigió acotando la ventana a 2 líneas y agregando una lista
-explícita de líneas de cabecera a ignorar, pero ambas son parches sobre
-un PDF concreto, no una garantía general. Cualquier cambio a ese archivo
-necesita repetir la prueba: extraer de `samples/*.pdf` (nunca versionado,
-trae datos personales) y buscar el RUC/nombre del contribuyente en la
-salida antes de confiar en ella.
+**Before widening `LABEL_LOOKBACK_LINES` or touching `BOILERPLATE_LINE` in
+`src/services/forms/pdf-field-extractor.ts`, re-test against a real PDF.**
+The first version of that code took all the text from the previous field
+onward as a candidate field name, with no limit — and in a real test
+against the sample PDF, that was enough for the taxpayer's RUC and legal
+name (repeated in the header of every page) to end up written into
+`form_fields.label` before anyone noticed. It was fixed by capping the
+window to 2 lines and adding an explicit list of header lines to ignore,
+but both are patches for one specific PDF, not a general guarantee. Any
+change to that file needs to repeat the test: extract from `samples/*.pdf`
+(never version-controlled, it carries personal data) and search the
+output for the taxpayer's RUC/name before trusting it.
 
-## Fechas
+## Dates
 
-**Una fecha guardada como `@db.Date` se muestra un día (o un mes) antes
-de lo esperado.** Prisma lee un `@db.Date` de vuelta como medianoche
-**UTC**, nunca medianoche local. En cualquier huso detrás de UTC (Ecuador,
-UTC-5), formatear esa fecha con los getters de hora local
-(`getMonth()`, `getFullYear()`, `toLocaleDateString()` sin `timeZone`)
-retrocede un día — y si el día es 1, retrocede un mes entero. Pasó de
-verdad con `tax_periods.period_start` (`periodos-client.tsx`) e
-`invoices_issued.issue_date` (`ventas-table.tsx`): un período de agosto
-se mostraba como julio. La regla: cualquier valor leído de una columna
-`@db.Date` se muestra con los getters **UTC**
-(`getUTCMonth`/`getUTCFullYear`/`getUTCDate`) o con
-`toLocaleDateString(locale, { timeZone: 'UTC' })` — nunca con los
-getters locales. Al construir uno de estos valores para guardarlo,
-`Date.UTC(year, month, day)`, no `new Date(year, month, day)` (que
-usa la zona del proceso que corre el código, no la del usuario).
+**A date stored as `@db.Date` displays one day (or one month) earlier
+than expected.** Prisma reads an `@db.Date` back as **UTC** midnight,
+never local midnight. In any timezone behind UTC (Ecuador, UTC-5),
+formatting that date with local-time getters (`getMonth()`,
+`getFullYear()`, `toLocaleDateString()` without `timeZone`) rolls it back
+a day — and if the day is 1, it rolls back an entire month. This actually
+happened with `tax_periods.period_start` (`periodos-client.tsx`) and
+`invoices_issued.issue_date` (`ventas-table.tsx`): an August period
+displayed as July. The rule: any value read from a `@db.Date` column is
+displayed with the **UTC** getters (`getUTCMonth`/`getUTCFullYear`/
+`getUTCDate`) or with `toLocaleDateString(locale, { timeZone: 'UTC' })` —
+never with local getters. When building one of these values to store it,
+use `Date.UTC(year, month, day)`, not `new Date(year, month, day)` (which
+uses the timezone of the process running the code, not the user's).
 
-## Rutas y sesión
+## Routes and sessions
 
-**Una ruta protegida no redirige a `/login` sin sesión.** Revisar que el
-archivo de proxy esté en `src/proxy.ts` (no en la raíz del proyecto ni
-llamado `middleware.ts` — Next.js 16 renombró la convención; con un
-directorio `src/`, solo reconoce `src/proxy.ts`). `src/proxy.ts` protege por
-exclusión (todo requiere sesión salvo `/login`, `/register` y `/`): si una
-ruta nueva queda pública sin querer, revisar `isPublicPath()` ahí, no una
-lista de rutas protegidas que haya que mantener a mano.
+**A protected route doesn't redirect to `/login` without a session.**
+Check that the proxy file is at `src/proxy.ts` (not at the project root,
+and not named `middleware.ts` — Next.js 16 renamed the convention; with a
+`src/` directory, it only recognizes `src/proxy.ts`). `src/proxy.ts`
+protects by exclusion (everything requires a session except `/login`,
+`/register`, and `/`): if a new route ends up public by accident, check
+`isPublicPath()` there, not a list of protected routes that would need to
+be maintained by hand.

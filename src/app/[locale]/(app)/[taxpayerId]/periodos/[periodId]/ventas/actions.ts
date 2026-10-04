@@ -16,9 +16,9 @@ export async function getPendingSales(taxpayerId: string, periodId: string) {
 }
 
 /**
- * Marca el destino de una o varias ventas con IVA = 0
- * (docs/guides/code-flow.md -> Ventas emitidas). Cada marca escribe un
- * evento en la bitácora (ADR-013) — no hay marcado sin registro.
+ * Marks the destination of one or more sales with IVA = 0
+ * (docs/guides/code-flow.md -> Issued sales). Every mark writes an audit
+ * log event (ADR-013) -- no marking happens without a record.
  */
 export async function markSalesTreatment(
   invoiceIds: string[],
@@ -45,7 +45,7 @@ export async function markSalesTreatment(
           newValue: treatment,
           actorType: 'USER',
           actorUserId: userId,
-          reason: 'Marcado manual por el usuario',
+          reason: 'Manually marked by the user',
         },
       });
     }

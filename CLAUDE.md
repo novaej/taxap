@@ -1,115 +1,118 @@
-# Reglas para asistentes de IA
+# Rules for AI assistants
 
-Contexto obligatorio antes de escribir código aquí:
-[`docs/guides/code-flow.md`](docs/guides/code-flow.md) (cómo funciona la app hoy),
-[`docs/data-model.md`](docs/data-model.md) y [`docs/adr/`](docs/adr/).
+Required context before writing code here:
+[`docs/guides/code-flow.md`](docs/guides/code-flow.md) (how the app works today),
+[`docs/data-model.md`](docs/data-model.md) and [`docs/adr/`](docs/adr/).
 
 ---
 
-## Reglas duras
+## Hard rules
 
-**1. `src/domain/` no importa infraestructura.**
-Nada de `@prisma/client`, `next`, `fetch` ni acceso a base de datos. Recibe objetos
-planos, devuelve veredictos. Si una función de dominio necesita la tasa de IVA, se
-le **pasa** como parámetro; no la consulta. ([ADR-001](docs/adr/001-nextjs-monolito-con-capa-de-dominio.md))
+**1. `src/domain/` does not import infrastructure.**
+No `@prisma/client`, `next`, `fetch`, or database access. It receives plain
+objects and returns verdicts. If a domain function needs the VAT rate, it is
+**passed** in as a parameter; it never queries for it. ([ADR-001](docs/adr/001-nextjs-monolito-con-capa-de-dominio.md))
 
-**2. Nunca se consulta una tabla protegida fuera del envoltorio de usuario.**
-`prisma.invoicesReceived.findMany()` directo **devuelve todo, sin filtrar**.
-Compila y funciona, y es el fallo más grave posible en este producto.
-Todo acceso pasa por el envoltorio que fija `app.current_user_id`.
+**2. A protected table is never queried outside the user wrapper.**
+A direct `prisma.invoicesReceived.findMany()` **returns everything, unfiltered**.
+It compiles and runs, and it is the most severe failure possible in this product.
+Every access goes through the wrapper that sets `app.current_user_id`.
 ([ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md))
 
-**3. El dinero es `Decimal`, nunca `number`.**
-`DECIMAL(14,2)` en PostgreSQL, `Prisma.Decimal` en TypeScript. Ninguna operación
-monetaria en coma flotante.
+**3. Money is `Decimal`, never `number`.**
+`DECIMAL(14,2)` in PostgreSQL, `Prisma.Decimal` in TypeScript. No monetary
+operation in floating point.
 
-**4. No se hardcodean tasas ni casilleros.**
-Se consultan por la fecha del hecho. ([ADR-012](docs/adr/012-tasas-y-casilleros-como-datos-con-vigencia.md))
+**4. Rates and fields are never hardcoded.**
+They are looked up by the date of the event. ([ADR-012](docs/adr/012-tasas-y-casilleros-como-datos-con-vigencia.md))
 
-**5. No se derivan valores que la fuente no trae.**
-`subtotal` y `vat_amount` son copias fieles del archivo. No se calcula base gravada
-ni base 0%. ([ADR-008](docs/adr/008-solo-totales-sin-detalle-de-lineas.md))
+**5. No value is derived that the source doesn't already provide.**
+`subtotal` and `vat_amount` are faithful copies from the file. Neither the
+taxed base nor the 0% base is calculated. ([ADR-008](docs/adr/008-solo-totales-sin-detalle-de-lineas.md))
 
-**6. Ningún cambio de clasificación sin evento en la bitácora.**
+**6. No classification change without an event in the audit log.**
 ([ADR-013](docs/adr/013-bitacora-inmutable-y-bloqueo-de-periodo.md))
 
-**7. El formulario 104 es el destino de los resultados, no una fuente de cálculo.**
-El sistema calcula con su propia lógica y el usuario copia los valores en el portal
-del SRI. Ni los valores ni las fórmulas del PDF del formulario alimentan nada; las
-fórmulas de [`formulario-104.md`](docs/tax/formulario-104.md) son referencia para
-quien implementa el dominio.
+**7. Form 104 is the destination for results, not a source of calculation.**
+The system calculates with its own logic and the user copies the values into
+the SRI portal. Neither the values nor the formulas from the form's PDF feed
+anything; the formulas in [`formulario-104.md`](docs/tax/formulario-104.md) are
+reference material for whoever implements the domain.
 
-**El dominio no conoce números de casillero.** Produce resultados con clave estable y
-una descripción estructurada (`SALES_TAXED`, `PURCHASES_WITH_CREDIT`…); el sistema los
-relaciona con el catálogo del formulario por su significado y guarda la relación en
-`result_mappings`. Nunca escribir `401` o `500` en `src/domain/`.
+**The domain does not know field numbers.** It produces results with a stable
+key and a structured description (`SALES_TAXED`, `PURCHASES_WITH_CREDIT`…); the
+system relates them to the form's catalog by meaning and stores the
+relationship in `result_mappings`. Never write `401` or `500` in `src/domain/`.
 ([ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md))
 
-**8. El MVP solo cubre el formulario mensual.** El semestral es otro formulario.
+**8. The MVP only covers the monthly form.** The semiannual one is a different form.
 
-**9. El vocabulario del producto no promete lo que el sistema no hace.**
-Nunca "Declarar" ni "Listo para declarar". ([ADR-014](docs/adr/014-caracter-asistivo-y-disclaimers.md))
+**9. The product's vocabulary never promises what the system doesn't do.**
+The UI is in Spanish, and the literal words to never use there are
+"Declarar" or "Listo para declarar" ("File" / "Ready to file") — the
+system calculates, but filing with the SRI is always the user's own,
+separate action. ([ADR-014](docs/adr/014-caracter-asistivo-y-disclaimers.md))
 
 ---
 
-## Errores fáciles de cometer aquí
+## Easy mistakes to make here
 
-| Error | Por qué importa |
+| Mistake | Why it matters |
 |---|---|
-| Usar `FECHA_AUTORIZACION` para asignar el período | El período lo determina `FECHA_EMISION` |
-| Asumir delimitador coma | Son TXT separados por **tabulación** |
-| Asumir dos decimales en el texto de origen | El SRI escribe `4.5`, no `4.50` |
-| Excluir notas de crédito del cálculo de IVA | **Restan.** Ignorarlas sobreestima el crédito ([ADR-010](docs/adr/010-tratamiento-por-tipo-de-comprobante.md)) |
-| Clasificar comprobantes con `IVA = 0` | No entran a la cascada |
-| Clave de regla solo por proveedor | Es `(contribuyente, proveedor, huella de actividad)` ([ADR-006](docs/adr/006-reglas-por-proveedor-y-actividad-economica.md)) |
-| Consultar la IA por comprobante | Es **por proveedor** ([ADR-005](docs/adr/005-clasificacion-en-cascada.md)) |
-| Enviar RUC o nombre del contribuyente a la IA | Nunca sale del sistema ([ADR-007](docs/adr/007-modo-sin-ia-y-catalogo-compartido.md)) |
-| Suponer que ventas sin IVA dan factor cero | **No.** Exportaciones y ventas 0% con derecho a crédito suman al numerador: factor `1.0000` ([`formulario-104.md`](docs/tax/formulario-104.md)) |
-| Tratar el factor como un solo número sin contexto | Depende del destino de cada venta con `IVA = 0`, que el archivo no indica |
-| Leer, almacenar o ejecutar una fórmula impresa en el PDF del formulario | El formulario es destino, no fuente. La lógica vive en `src/domain/`, escrita y probada ([ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md)) |
-| Calcular el factor con ventas `IVA = 0` sin marcar | Bloqueado hasta que el usuario marque el destino de cada una |
-| Guardar el PDF del formulario, sus valores o sus fórmulas | Solo se guarda el catálogo de campos (código, nombre, sección). El PDF trae datos personales |
-| Hacer que el administrador asigne o corrija resultados | El administrador es **del sistema**, no de un contribuyente: solo importa el formulario. Cada relación se explica; nadie la edita a mano |
-| Mostrar un resultado con casillero sin su explicación | Es una aproximación: siempre con el nombre oficial y la razón |
-| Bloquear el cálculo porque un resultado no tiene casillero | Se muestra sin código y se avisa; no bloquea |
-| Agregar `attribution` (directa / prorrateable) | Se eliminó: la clasificación de una compra es 500 o 502 |
-| Repartir las compras con `IVA = 0` entre 507, 508, 531, 532 | No van a casillero; solo un total informativo |
-| Ver un casillero ausente en una importación como eliminado | Es "no observado"; solo se retira por acción explícita |
-| Reescribir un ADR al cambiar de opinión | Se escribe uno nuevo que lo reemplaza |
-| Habilitar RLS con solo `ENABLE ROW LEVEL SECURITY` | No alcanza si la app se conecta con el mismo rol dueño de las tablas (el caso aquí: `taxap` corre las migraciones y sirve las consultas). Postgres exime al dueño de sus propias políticas salvo que también se fije `FORCE ROW LEVEL SECURITY`. Sin ella, las políticas existen pero no filtran nada, en silencio ([ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md)) |
+| Using `FECHA_AUTORIZACION` to assign the period | The period is determined by `FECHA_EMISION` |
+| Assuming a comma delimiter | They are TXT files separated by **tabs** |
+| Assuming two decimals in the source text | The SRI writes `4.5`, not `4.50` |
+| Excluding credit notes from the VAT calculation | **They subtract.** Ignoring them overstates the credit ([ADR-010](docs/adr/010-tratamiento-por-tipo-de-comprobante.md)) |
+| Classifying vouchers with `IVA = 0` | They don't enter the cascade |
+| Keying a rule by supplier alone | It's `(taxpayer, supplier, activity fingerprint)` ([ADR-006](docs/adr/006-reglas-por-proveedor-y-actividad-economica.md)) |
+| Querying the AI per voucher | It's **per supplier** ([ADR-005](docs/adr/005-clasificacion-en-cascada.md)) |
+| Sending the taxpayer's RUC or name to the AI | It never leaves the system ([ADR-007](docs/adr/007-modo-sin-ia-y-catalogo-compartido.md)) |
+| Assuming sales without IVA give a factor of zero | **No.** Exports and 0%-rated sales with credit entitlement add to the numerator: factor `1.0000` ([`formulario-104.md`](docs/tax/formulario-104.md)) |
+| Treating the factor as a single number without context | It depends on the destination of each sale with `IVA = 0`, which the file doesn't indicate |
+| Reading, storing, or executing a formula printed in the form's PDF | The form is a destination, not a source. The logic lives in `src/domain/`, written and tested ([ADR-015](docs/adr/015-definicion-del-formulario-desde-pdf.md)) |
+| Calculating the factor with unmarked `IVA = 0` sales | Blocked until the user marks the destination of each one |
+| Saving the form's PDF, its values, or its formulas | Only the field catalog is saved (code, name, section). The PDF carries personal data |
+| Having the admin assign or correct results | The admin is **of the system**, not of a taxpayer: they only import the form. Every relationship is explained; no one edits it by hand |
+| Showing a result with a field but no explanation | It's an approximation: always with the official name and the reason |
+| Blocking the calculation because a result has no field | It's shown without a code and flagged; it doesn't block |
+| Adding `attribution` (direct / proratable) | It was removed: a purchase's classification is 500 or 502 |
+| Splitting `IVA = 0` purchases across 507, 508, 531, 532 | They don't go to a field; just an informational total |
+| Treating a field missing from an import as deleted | It's "not observed"; it's only removed by an explicit action |
+| Rewriting an ADR after changing one's mind | A new one is written that replaces it |
+| Enabling RLS with only `ENABLE ROW LEVEL SECURITY` | It's not enough if the app connects with the same role that owns the tables (the case here: `taxap` runs the migrations and serves the queries). Postgres exempts the owner from its own policies unless `FORCE ROW LEVEL SECURITY` is also set. Without it, the policies exist but silently filter nothing ([ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md)) |
 
 ---
 
-## Modelos de IA
+## AI models
 
-| Uso | Modelo |
+| Use | Model |
 |---|---|
-| Clasificación masiva | `claude-haiku-4-5` |
-| Escalamiento de casos ambiguos | `claude-opus-5` |
+| Bulk classification | `claude-haiku-4-5` |
+| Escalation of ambiguous cases | `claude-opus-5` |
 
-Con salidas estructuradas (`output_config.format`), no parseando prosa. Batch API
-para el pase masivo. Toda respuesta registra `model_id` y `prompt_version`.
+With structured outputs (`output_config.format`), never by parsing prose. Batch
+API for the bulk pass. Every response logs `model_id` and `prompt_version`.
 
 ---
 
-## Verificación antes de tocar el formato del SRI
+## Verification before touching the SRI format
 
-Antes de escribir o modificar un parser, leer
+Before writing or modifying a parser, read
 [`docs/tax/formato-archivos-sri.md`](docs/tax/formato-archivos-sri.md).
-Ese documento fue verificado contra archivos reales y contiene una lista de
-pendientes. **No inventar columnas ni suponer literales** que no estén ahí.
+That document was verified against real files and contains a list of
+pending items. **Don't invent columns or assume literals** that aren't there.
 
-## Valores normativos
+## Normative values
 
-Todo número tributario en `docs/tax/` lleva fuente y fecha de verificación. Si
-falta, va marcado `[VERIFICAR]` y **no se carga al sistema**. No completar un
-`[VERIFICAR]` de memoria.
+Every tax figure in `docs/tax/` carries a source and a verification date. If
+one is missing, it's marked `[VERIFICAR]` and **is not loaded into the
+system**. Never fill in a `[VERIFICAR]` from memory.
 
 ---
 
-## Al terminar un cambio
+## When finishing a change
 
-Ver [`docs/guides/documentation-checklist.md`](docs/guides/documentation-checklist.md).
+See [`docs/guides/documentation-checklist.md`](docs/guides/documentation-checklist.md).
 
 <!-- BEGIN:nextjs-agent-rules -->
 

@@ -19,9 +19,9 @@ export async function getPurchasesByStatus(taxpayerId: string, periodId: string)
 }
 
 /**
- * Paso 2 de la ingesta (ADR-011): agrupa por proveedor y corre la cascada
- * de cuatro niveles (ADR-005). Reanudable — solo toca lo que sigue sin
- * clasificar.
+ * Step 2 of ingestion (ADR-011): groups by supplier and runs the
+ * four-level cascade (ADR-005). Resumable -- only touches what's still
+ * unclassified.
  */
 export async function classifyPeriod(taxpayerId: string, periodId: string) {
   const userId = await getCurrentUserId();
@@ -46,8 +46,8 @@ export async function classifyPeriod(taxpayerId: string, periodId: string) {
     const taxpayer = await tx.taxpayer.findUniqueOrThrow({ where: { id: taxpayerId } });
 
     for (const [supplierRuc, invoices] of bySupplier) {
-      // ADR-010: un solo tipo no reconocido en el grupo manda todo el
-      // proveedor a revisión manual, sin pasar por la cascada.
+      // ADR-010: a single unrecognized type in the group sends the whole
+      // supplier to manual review, without going through the cascade.
       const allRecognized = invoices.every((inv) =>
         VOUCHER_TYPE_WHITELIST.has(inv.documentType)
       );
@@ -80,8 +80,8 @@ export async function classifyPeriod(taxpayerId: string, periodId: string) {
                   category: existingRule.ivaCategory as unknown as IvaCategoryEnum,
                 }
               : null,
-            [], // ADR-007: catálogo compartido, no implementado aún
-            null // ADR-007: nivel 3 (IA), no implementado aún
+            [], // ADR-007: shared catalog, not implemented yet
+            null // ADR-007: level 3 (AI), not implemented yet
           );
 
       const newStatus: ProcessingStatus = decision ? 'PROCESSED' : 'REQUIRES_MANUAL_REVIEW';
@@ -114,7 +114,7 @@ export async function classifyPeriod(taxpayerId: string, periodId: string) {
             oldValue: invoice.ivaCategory,
             newValue: newCategory,
             actorType: 'ENGINE',
-            reason: decision?.reason ?? 'Sin coincidencia en ningún nivel de la cascada',
+            reason: decision?.reason ?? 'No match at any level of the cascade',
           },
         });
       }
@@ -125,8 +125,8 @@ export async function classifyPeriod(taxpayerId: string, periodId: string) {
 }
 
 /**
- * Clasificación manual (individual o masiva). Crea o actualiza la regla del
- * proveedor para que se resuelva sola la próxima vez (ADR-006).
+ * Manual classification (single or bulk). Creates or updates the
+ * supplier's rule so it resolves on its own next time (ADR-006).
  */
 export async function applyManualClassification(
   invoiceIds: string[],
@@ -161,13 +161,13 @@ export async function applyManualClassification(
           newValue: category,
           actorType: 'USER',
           actorUserId: userId,
-          reason: 'Manual: usuario',
+          reason: 'Manual: user',
         },
       });
 
-      // Regla revocable, única por (contribuyente, proveedor) mientras no
-      // esté revocada (ADR-006) — no es una clave compuesta declarable en
-      // el esquema, así que se busca primero en vez de un upsert por PK.
+      // Revocable rule, unique per (taxpayer, supplier) while not revoked
+      // (ADR-006) -- not a composite key the schema can declare, so it's
+      // looked up first instead of an upsert by PK.
       const existingRule = await tx.supplierRule.findFirst({
         where: { taxpayerId, supplierRuc: invoice.supplierRuc, revokedAt: null },
       });

@@ -1,69 +1,74 @@
-# ADR-011: Ingesta y clasificación en dos pasos reanudables
+# ADR-011: Resumable two-step ingestion and classification
 
-## Estado
-Aceptado
+## Status
+Accepted
 
-## Fecha
+## Date
 2026-09-20
 
-## Contexto
+## Context
 
-Se consideró inicialmente una cola de trabajos (pg-boss o similar) para procesar la
-carga, asumiendo un volumen alto de procesamiento por archivo.
+A job queue (pg-boss or similar) was initially considered for processing
+the upload, assuming high per-file processing volume.
 
-Al revisar los archivos reales del SRI, el supuesto resultó falso. Son TXT separados
-por tabulación con una fila por comprobante y ocho a doce columnas. Parsear miles de
-filas toma segundos, y la clasificación consulta a la IA **por proveedor, no por
-comprobante** ([ADR-005](005-clasificacion-en-cascada.md)): decenas de consultas,
-no miles.
+Reviewing real SRI files, that assumption turned out to be false. They're
+tab-separated TXT files with one row per voucher and eight to twelve
+columns. Parsing thousands of rows takes seconds, and classification
+queries the AI **per supplier, not per voucher**
+([ADR-005](005-clasificacion-en-cascada.md)): dozens of queries, not
+thousands.
 
-Queda un riesgo real: si la petición HTTP se corta a la mitad —tiempo de espera
-agotado, despliegue, red del usuario—, ¿qué pasa con lo ya procesado?
+A real risk remains: if the HTTP request gets cut off halfway through —
+a timeout, a deploy, the user's network — what happens to what's already
+been processed?
 
-## Decisión
+## Decision
 
-**Sin cola de trabajos. Dos pasos separados, cada uno idempotente.**
+**No job queue. Two separate steps, each idempotent.**
 
-**Paso 1 — Ingesta.** Síncrono. Parsea, valida, deduplica por clave de acceso
-([ADR-009](009-clave-de-acceso-como-clave-de-deduplicacion.md)) e inserta con
-`processing_status` sin clasificar. Segundos. Si algo falla después, nada se perdió:
-los comprobantes están guardados.
+**Step 1 — Ingestion.** Synchronous. Parses, validates, deduplicates by
+access key ([ADR-009](009-clave-de-acceso-como-clave-de-deduplicacion.md))
+and inserts with `processing_status` unclassified. Seconds. If something
+fails afterward, nothing is lost: the vouchers are already saved.
 
-**Paso 2 — Clasificación.** Toma los comprobantes sin clasificar del período, los
-pasa por la cascada y los marca. **Reanudable**: volver a ejecutarlo continúa donde
-quedó, sin duplicar trabajo ni reconsultar a la IA por proveedores ya resueltos.
-El usuario lo dispara explícitamente y puede repetirlo sin consecuencias.
+**Step 2 — Classification.** Takes the period's unclassified vouchers,
+runs them through the cascade, and marks them. **Resumable**: running it
+again continues where it left off, with no duplicated work and no
+re-querying the AI for already-resolved suppliers. The user triggers it
+explicitly and can repeat it with no consequences.
 
-La reanudabilidad viene de que el estado vive en la fila del comprobante, no en
-memoria ni en un mensaje de cola. No hace falta infraestructura para saber dónde
-quedó el proceso: basta consultar qué sigue sin clasificar.
+Resumability comes from the fact that the state lives in the voucher row,
+not in memory or in a queue message. No infrastructure is needed to know
+where the process left off: it's enough to query what's still
+unclassified.
 
-## Consecuencias
+## Consequences
 
-### Positivas
-- Ninguna infraestructura adicional: ni Redis, ni broker, ni proceso trabajador.
-- Una interrupción nunca deja el período en estado inconsistente.
-- El usuario tiene control explícito: carga, revisa lo cargado, clasifica.
-- Separar los pasos deja la puerta abierta a una cola más adelante sin rediseñar
-  nada — el paso 2 ya es una unidad de trabajo reanudable.
+### Positive
+- No additional infrastructure: no Redis, no broker, no worker process.
+- An interruption never leaves the period in an inconsistent state.
+- The user has explicit control: upload, review what was loaded, classify.
+- Separating the steps leaves the door open to a queue later without any
+  redesign — step 2 is already a resumable unit of work.
 
-### Negativas
-- El paso 2 corre dentro de una petición HTTP y puede acercarse a los límites de
-  tiempo de espera con un primer período grande y muchos proveedores nuevos. Se
-  mitiga procesando por lotes y devolviendo control, pero **hay que medirlo con un
-  período real antes de dar la decisión por buena.**
-- No hay reintento automático. Si el paso 2 falla, el usuario tiene que volver a
-  dispararlo. Aceptable porque es reanudable y la acción es explícita.
-- Sin cola no hay control de concurrencia: dos ejecuciones simultáneas del paso 2
-  sobre el mismo período pueden duplicar consultas a la IA. Se resuelve con un
-  bloqueo consultivo de PostgreSQL por período, no con infraestructura nueva.
+### Negative
+- Step 2 runs inside an HTTP request and may approach timeout limits with
+  a large first period and many new suppliers. Mitigated by processing in
+  batches and returning control, but **it has to be measured with a real
+  period before accepting this decision as good.**
+- No automatic retry. If step 2 fails, the user has to trigger it again.
+  Acceptable because it's resumable and the action is explicit.
+- Without a queue there's no concurrency control: two simultaneous runs
+  of step 2 on the same period can duplicate AI queries. Resolved with a
+  PostgreSQL advisory lock per period, not with new infrastructure.
 
-## Alternativas consideradas
+## Alternatives considered
 
-**pg-boss.** Cola sobre el mismo PostgreSQL, sin infraestructura extra y
-transaccional con los datos. Era la recomendación inicial, hecha bajo el supuesto
-equivocado de un procesamiento pesado. Sigue siendo la primera opción **si la
-medición muestra que el paso 2 no cabe en una petición.**
+**pg-boss.** A queue on the same PostgreSQL instance, no extra
+infrastructure and transactional with the data. Was the initial
+recommendation, made under the wrong assumption of heavy processing.
+Still the first option **if measurement shows step 2 doesn't fit in a
+request.**
 
-**BullMQ con Redis.** Más capacidad y mejores reintentos, a cambio de un servicio
-más que operar. Desproporcionado para este volumen.
+**BullMQ with Redis.** More capacity and better retries, in exchange for
+one more service to operate. Disproportionate for this volume.
