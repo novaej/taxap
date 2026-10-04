@@ -312,3 +312,59 @@ filas fallaban con "Check digit mismatch", "Empty digits must be 000" y
   de 3 dígitos. Una comparación directa (`!==`) habría seguido fallando
   para el mismo archivo del usuario incluso después de arreglar el bug del
   UUID. Ahora acepta ambos casos.
+
+## [2026-10-04] Pantallas de contribuyentes y períodos; navegación completa sin URLs a mano
+
+Hasta ahora la única forma de crear un contribuyente o un período era
+`scripts/seed-test-taxpayer.ts` contra la base directamente. Esta entrada
+agrega las pantallas que lo reemplazan y cierra el hueco de navegación que
+dejaban.
+
+### Agregado
+- `src/domain/iva/activity-fingerprint.ts` — `computeActivityFingerprint()`
+  (ADR-006), pura: hash SHA-256 de las actividades económicas ordenadas. No
+  existía ninguna implementación pese a que `Taxpayer.activityFingerprint`
+  ya era un campo obligatorio del esquema.
+- `/[locale]/(app)/taxpayers` — lista de contribuyentes del usuario, con
+  logout (`signOut()` de `next-auth/react`).
+- `/[locale]/(app)/taxpayers/new` — alta de contribuyente: RUC, razón
+  social, nombre comercial opcional, régimen, periodicidad de IVA y
+  actividades económicas (lista dinámica).
+- `/[locale]/(app)/[taxpayerId]/periodos` — lista de períodos del
+  contribuyente y alta de período nuevo (año + mes, mensual e IVA por
+  ahora).
+- `TROUBLESHOOTING.md` — errores de entorno e infraestructura, separado de
+  `GETTING_STARTED.md` (que ahora es solo instalación + recorrido rápido).
+
+### Cambiado
+- `src/proxy.ts` pasó de lista negra (`pathname.includes('/periodos/')`,
+  que no cubría `/taxpayers` ni `/[taxpayerId]/periodos` sin segmento
+  final) a lista blanca: toda ruta exige sesión salvo `/login`, `/register`
+  y la portada. Una pantalla nueva queda protegida por defecto.
+- `/[locale]` (portada) ya no es una lista de módulos con un
+  `taxpayerId`/`periodId` de demostración fijo (`/demo/periodos/demo`).
+  Ahora redirige: con sesión a `/taxpayers`, sin sesión a `/login`.
+- Las cuatro pantallas de período (ingesta, ventas, conciliación,
+  pre-declaración) tenían un enlace "volver" que apuntaba a `/` sin
+  resolver nada. Ahora llevan a la pantalla anterior real en la jerarquía
+  (lista de períodos, o la raíz del período).
+- `GETTING_STARTED.md`: la sección 5 pasó de "crear un contribuyente de
+  prueba por script" a un recorrido completo dentro de la aplicación,
+  registro incluido. "Verificación de RLS" y "Problemas frecuentes" se
+  movieron a `TROUBLESHOOTING.md`.
+- `docs/guides/code-flow.md`: nueva sección "0. Contribuyentes y períodos"
+  documentando las pantallas y Server Actions nuevas, y la razón por la
+  que `taxpayers` no tiene política de `DELETE` (deliberado, no un hueco).
+
+### Eliminado
+- `scripts/seed-test-taxpayer.ts` y el script `seed:test-taxpayer` de
+  `package.json` — reemplazados por las pantallas reales.
+
+### Hallazgo (sin cambio de código)
+- La tabla `taxpayers` nunca tuvo política de RLS para `DELETE` —ni
+  siquiera para `is_system_admin()`— y con `FORCE ROW LEVEL SECURITY` eso
+  bloquea el comando por completo para cualquier fila, no solo lo filtra.
+  Confirmado al verificar el flujo nuevo contra la base real: un
+  contribuyente de prueba quedó sin forma de borrarse desde el rol `taxap`.
+  Es coherente con la bitácora inmutable de ADR-013, así que se documenta
+  en `TROUBLESHOOTING.md` en vez de tratarse como bug.

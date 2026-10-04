@@ -15,7 +15,10 @@ export default async function VentasPage({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <Link href="/" className="mb-4 inline-block text-sm text-muted-foreground hover:underline">
+      <Link
+        href={`/${taxpayerId}/periodos/${periodId}`}
+        className="mb-4 inline-block text-sm text-muted-foreground hover:underline"
+      >
         ← {common('back')}
       </Link>
       <h1 className="mb-6 text-2xl font-bold">{t('title')}</h1>

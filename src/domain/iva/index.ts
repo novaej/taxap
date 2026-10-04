@@ -11,6 +11,9 @@ export {
 } from './access-key';
 export type { DecomposedAccessKey } from './access-key';
 
+// Activity Fingerprint
+export { computeActivityFingerprint } from './activity-fingerprint';
+
 // Proportionality
 export {
   calculateProportionalityFactor,

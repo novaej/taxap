@@ -105,19 +105,42 @@ npm run dev
 
 http://localhost:3000 → redirige a `/es` (único locale por ahora).
 
-## 5. Crear una cuenta y un contribuyente de prueba
+## 5. Recorrido completo, de cero a pre-declaración
 
-1. Registrarse en `/es/register` e iniciar sesión en `/es/login`.
-2. No existe todavía una pantalla de alta de contribuyente ni de selección de
-   período ([`NEXT_STEPS.md`](NEXT_STEPS.md)). El puente mientras tanto:
+Todo lo de aquí en adelante pasa dentro de la aplicación — ninguna URL se
+teclea a mano más allá de la inicial.
 
-   ```bash
-   npm run seed:test-taxpayer -- tu-correo@ejemplo.com
-   ```
+1. **Registro y login.** Entrar a `http://localhost:3000` redirige a
+   `/es/login` (sin sesión). Ir a `/es/register`, crear la cuenta, volver a
+   iniciar sesión. Con sesión, la portada redirige a `/es/taxpayers`.
+2. **Crear un contribuyente.** En `/es/taxpayers` (vacío la primera vez),
+   botón "Registrar el primero" → formulario: RUC (13 dígitos), razón
+   social, régimen, periodicidad de IVA y actividades económicas. El MVP
+   solo calcula pre-declaración para periodicidad **mensual**; con otra
+   periodicidad el contribuyente queda registrado pero sin cálculo
+   todavía.
+3. **Crear un período.** Al crear el contribuyente, vuelve a la lista;
+   "Ver períodos →" lleva a `/es/[taxpayerId]/periodos`. Ahí, "+ Nuevo
+   período" y elegir año/mes. Cada período queda en estado "Borrador".
+4. **Entrar al período.** Un clic en el período creado lleva a su pantalla
+   raíz (pre-declaración), con enlaces a las tres pantallas del flujo:
+   - **Ingesta** — cargar un archivo `.txt` de comprobantes (recibidos u
+     emitidos) del SRI. Ver formato esperado en
+     [`docs/tax/formato-archivos-sri.md`](docs/tax/formato-archivos-sri.md).
+   - **Ventas emitidas** — marcar el destino de las ventas con `IVA = 0%`
+     (exportación, 0% con/sin derecho a crédito, no objeto/exenta). El
+     factor de proporcionalidad no se calcula mientras quede alguna sin
+     marcar.
+   - **Conciliación** — clasificar las compras con `IVA > 0` (crédito
+     tributario, costo o gasto, o excluir), por proveedor.
+5. **Pre-declaración.** De vuelta en la raíz del período, los resultados
+   calculados (sin casillero del formulario todavía, ver
+   [`NEXT_STEPS.md`](NEXT_STEPS.md)) y la opción de marcar el período como
+   declarado.
 
-   Imprime las URLs directas a las cuatro pantallas (ingesta, ventas
-   emitidas, conciliación, pre-declaración) para un contribuyente y período
-   de prueba ya vinculados a esa cuenta.
+Para el detalle de qué hace cada Server Action y por qué, ver
+[`docs/guides/code-flow.md`](docs/guides/code-flow.md). Para errores
+durante este recorrido, ver [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
 ## Comandos de base de datos
 
@@ -126,7 +149,6 @@ http://localhost:3000 → redirige a `/es` (único locale por ahora).
 | `npm run db:migrate` | Aplica migraciones pendientes (`prisma migrate dev`) |
 | `npm run db:seed` | Siembra los planes (`prisma/seed.ts`) |
 | `npm run db:reset` | Borra todo en `public` (tablas, tipos, funciones) y vuelve a migrar + sembrar. Bloqueado si `NODE_ENV=production`. |
-| `npm run seed:test-taxpayer -- <correo>` | Crea un contribuyente + período de prueba para una cuenta ya registrada |
 
 Acceso directo a la base, si hace falta:
 
@@ -140,38 +162,6 @@ docker exec postgres18 psql -U postgres -d taxap_dev
 # Prisma Studio
 npx prisma studio
 ```
-
-## Verificación de que la RLS funciona
-
-No es opcional. Antes de construir sobre esta base, confirmar que **ambas**
-banderas están activas en cada tabla con datos de contribuyentes — `ENABLE ROW
-LEVEL SECURITY` sola no alcanza si la app se conecta con el mismo rol que es
-dueño de las tablas (que es el caso aquí: `taxap` corre las migraciones y
-también sirve las consultas). Sin `FORCE`, Postgres exime al dueño de sus
-propias políticas y las consultas devuelven todo sin filtrar, en silencio:
-
-```bash
-docker exec postgres18 psql -U postgres -d taxap_dev -c "
-  SELECT relname, relrowsecurity, relforcerowsecurity
-  FROM pg_class
-  WHERE relname IN (
-    'taxpayers', 'user_taxpayers', 'tax_periods', 'source_files',
-    'invoices_received', 'invoices_issued', 'supplier_rules',
-    'classification_events', 'period_results'
-  );
-"
-# las tres columnas deben ser 't' en cada fila
-```
-
-Con datos de dos contribuyentes distintos, confirmar que un usuario no ve los
-del otro ni siquiera pasando el identificador directo — el envoltorio en
-[`src/lib/db.ts`](src/lib/db.ts) (`withUser`/`asAdmin`) es el único camino
-permitido para tocar estas tablas. **Si esta prueba no pasa, el aislamiento
-entre clientes no existe.** Ver [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
-
-> Pendiente: no hay todavía un script de regresión permanente para esto —
-> cada verificación se hizo ad hoc y no quedó como artefacto reproducible.
-> Ver [`NEXT_STEPS.md`](NEXT_STEPS.md).
 
 ## Datos de prueba
 
@@ -196,26 +186,5 @@ npm run db:migrate
 npm run db:seed
 ```
 
-## Problemas frecuentes
-
-**`connection refused` en el puerto 5432.** Hay otro PostgreSQL local ocupando el
-puerto. Revisar qué hay corriendo con `docker ps` antes de crear un contenedor
-nuevo — probablemente ya existe uno que se puede reutilizar.
-
-**El registro falla / `plan_code` no tiene a qué apuntar.** No se corrió
-`npm run db:seed`. `users.plan_code` es una FK a `plans.code`.
-
-**Las consultas devuelven datos de otros usuarios.** El usuario de base de datos es
-superusuario, falta `FORCE ROW LEVEL SECURITY` en la tabla, o el código está
-consultando fuera del envoltorio que fija `app.current_user_id`.
-Ver [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
-
-**Las consultas no devuelven nada estando los datos ahí.** `app.current_user_id`
-está fijada con un valor que no corresponde, o la transacción envolvente no está
-abierta — `withUser()` debe correr el `SET` y la consulta dentro del mismo
-`$transaction`, nunca como llamadas separadas contra una conexión pooled.
-
-**Una ruta bajo `/periodos/` no redirige a `/login` sin sesión.** Revisar que
-el archivo de proxy esté en `src/proxy.ts` (no en la raíz del proyecto ni
-llamado `middleware.ts` — Next.js 16 renombró la convención; con un
-directorio `src/`, solo reconoce `src/proxy.ts`).
+Para verificar que la RLS funciona y para errores comunes durante la puesta
+en marcha o el recorrido, ver [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).

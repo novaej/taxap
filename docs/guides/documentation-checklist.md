@@ -70,4 +70,5 @@ Qué actualizar según el tipo de cambio.
 | `CHANGELOG.md` | Cada cambio |
 | `NEXT_STEPS.md` | Se completa o se descubre un pendiente |
 | `.example.env` | Nueva variable de entorno |
-| `GETTING_STARTED.md` | Cambian los pasos de instalación |
+| `GETTING_STARTED.md` | Cambian los pasos de instalación o el recorrido de uso rápido |
+| `TROUBLESHOOTING.md` | Nuevo error recurrente de entorno/infraestructura (no tributario — eso va a `CLAUDE.md`) |

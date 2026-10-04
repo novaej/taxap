@@ -8,25 +8,58 @@
     "confirm": "Confirmar",
     "disclaimer": "Cálculo asistido, pendiente de revisión del responsable antes de presentarse al SRI. No sustituye el criterio profesional."
   },
-  "HomePage": {
-    "title": "taxap",
-    "subtitle": "Automatización de IVA para Ecuador",
-    "modulesHeading": "Módulos",
-    "ingesta": {
-      "title": "Ingesta",
-      "description": "Cargar archivos del SRI (compras, ventas) y validar el formato"
+  "Taxpayers": {
+    "title": "Mis contribuyentes",
+    "newButton": "+ Nuevo contribuyente",
+    "emptyState": "Todavía no tienes ningún contribuyente registrado.",
+    "emptyStateCta": "Registrar el primero",
+    "ruc": "RUC",
+    "businessName": "Razón social",
+    "regime": "Régimen",
+    "periodicity": "Periodicidad",
+    "periodsLink": "Ver períodos →",
+    "logout": "Cerrar sesión",
+    "newTitle": "Nuevo contribuyente",
+    "tradeName": "Nombre comercial",
+    "tradeNameOptional": "(opcional)",
+    "regimeOptions": {
+      "GENERAL": "General",
+      "RIMPE_POPULAR": "RIMPE Popular",
+      "RIMPE_EMPRENDEDOR": "RIMPE Emprendedor"
     },
-    "ventas": {
-      "title": "Ventas emitidas",
-      "description": "Marcar el destino de las ventas con IVA 0% y ver el factor de proporcionalidad"
+    "periodicityOptions": {
+      "MONTHLY": "Mensual",
+      "SEMIANNUAL": "Semestral",
+      "ANNUAL": "Anual"
     },
-    "conciliacion": {
-      "title": "Conciliación",
-      "description": "Revisar y clasificar manualmente los comprobantes que la cascada no resolvió"
+    "periodicityNotice": "El MVP solo genera pre-declaración para periodicidad mensual. Puedes registrar un contribuyente con otra periodicidad, pero no vas a poder calcular su declaración todavía.",
+    "activitiesHeading": "Actividades económicas",
+    "activityCode": "Código",
+    "activityDescription": "Descripción",
+    "addActivity": "+ Agregar actividad",
+    "removeActivity": "Quitar",
+    "createButton": "Crear contribuyente",
+    "rucInUse": "Ya existe un contribuyente con ese RUC",
+    "rucInvalid": "El RUC debe tener 13 dígitos"
+  },
+  "Periods": {
+    "title": "Períodos",
+    "newButton": "+ Nuevo período",
+    "emptyState": "Todavía no hay períodos para este contribuyente.",
+    "year": "Año",
+    "month": "Mes",
+    "status": "Estado",
+    "statusOptions": {
+      "DRAFT": "Borrador",
+      "UNDER_REVIEW": "En revisión",
+      "FILED": "Declarado"
     },
-    "predeclaracion": {
-      "title": "Pre-declaración",
-      "description": "Revisar los resultados del formulario 104 antes de declarar"
+    "createButton": "Crear período",
+    "alreadyExists": "Ya existe un período para ese mes",
+    "months": {
+      "1": "Enero", "2": "Febrero", "3": "Marzo", "4": "Abril",
+      "5": "Mayo", "6": "Junio", "7": "Julio", "8": "Agosto",
+      "9": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
     }
   },
   "Ingesta": {

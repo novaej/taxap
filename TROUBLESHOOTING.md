@@ -1,0 +1,75 @@
+# Problemas frecuentes
+
+Para la puesta en marcha paso a paso, ver [`GETTING_STARTED.md`](GETTING_STARTED.md).
+
+## Base de datos
+
+**`connection refused` en el puerto 5432.** Hay otro PostgreSQL local ocupando el
+puerto. Revisar qué hay corriendo con `docker ps` antes de crear un contenedor
+nuevo — probablemente ya existe uno que se puede reutilizar.
+
+**El registro falla / `plan_code` no tiene a qué apuntar.** No se corrió
+`npm run db:seed`. `users.plan_code` es una FK a `plans.code`.
+
+## Row-Level Security (RLS)
+
+**Verificación de que la RLS funciona.** No es opcional. Antes de construir
+sobre esta base, confirmar que **ambas** banderas están activas en cada
+tabla con datos de contribuyentes — `ENABLE ROW LEVEL SECURITY` sola no
+alcanza si la app se conecta con el mismo rol que es dueño de las tablas
+(que es el caso aquí: `taxap` corre las migraciones y también sirve las
+consultas). Sin `FORCE`, Postgres exime al dueño de sus propias políticas y
+las consultas devuelven todo sin filtrar, en silencio:
+
+```bash
+docker exec postgres18 psql -U postgres -d taxap_dev -c "
+  SELECT relname, relrowsecurity, relforcerowsecurity
+  FROM pg_class
+  WHERE relname IN (
+    'taxpayers', 'user_taxpayers', 'tax_periods', 'source_files',
+    'invoices_received', 'invoices_issued', 'supplier_rules',
+    'classification_events', 'period_results'
+  );
+"
+# las tres columnas deben ser 't' en cada fila
+```
+
+Con datos de dos contribuyentes distintos, confirmar que un usuario no ve los
+del otro ni siquiera pasando el identificador directo — el envoltorio en
+[`src/lib/db.ts`](src/lib/db.ts) (`withUser`/`asAdmin`) es el único camino
+permitido para tocar estas tablas. **Si esta prueba no pasa, el aislamiento
+entre clientes no existe.** Ver [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
+
+> Pendiente: no hay todavía un script de regresión permanente para esto —
+> cada verificación se hizo ad hoc y no quedó como artefacto reproducible.
+> Ver [`NEXT_STEPS.md`](NEXT_STEPS.md).
+
+**Las consultas devuelven datos de otros usuarios.** El usuario de base de datos es
+superusuario, falta `FORCE ROW LEVEL SECURITY` en la tabla, o el código está
+consultando fuera del envoltorio que fija `app.current_user_id`.
+Ver [ADR-004](docs/adr/004-rls-por-usuario-con-prisma.md).
+
+**Las consultas no devuelven nada estando los datos ahí.** `app.current_user_id`
+está fijada con un valor que no corresponde, o la transacción envolvente no está
+abierta — `withUser()` debe correr el `SET` y la consulta dentro del mismo
+`$transaction`, nunca como llamadas separadas contra una conexión pooled.
+
+**Un `DELETE` sobre `taxpayers` falla con "record not found" aunque el `SELECT`
+en la misma transacción sí ve la fila.** No es un bug de RLS: la tabla
+`taxpayers` solo tiene políticas para `SELECT`/`INSERT`/`UPDATE`
+(`prisma/migrations/*_add_rls/migration.sql`), ningún `DELETE` — ni siquiera
+para `is_system_admin()`. Con `FORCE ROW LEVEL SECURITY`, la ausencia de
+política para un comando bloquea ese comando por completo para cualquier
+fila, no lo filtra a cero filas visibles. Es deliberado: un contribuyente no
+se borra desde la aplicación. Si hace falta borrar uno en desarrollo, se
+hace a mano con el rol superusuario de Postgres (nunca con el rol `taxap`).
+
+## Rutas y sesión
+
+**Una ruta protegida no redirige a `/login` sin sesión.** Revisar que el
+archivo de proxy esté en `src/proxy.ts` (no en la raíz del proyecto ni
+llamado `middleware.ts` — Next.js 16 renombró la convención; con un
+directorio `src/`, solo reconoce `src/proxy.ts`). `src/proxy.ts` protege por
+exclusión (todo requiere sesión salvo `/login`, `/register` y `/`): si una
+ruta nueva queda pública sin querer, revisar `isPublicPath()` ahí, no una
+lista de rutas protegidas que haya que mantener a mano.

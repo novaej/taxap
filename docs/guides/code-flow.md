@@ -14,15 +14,49 @@ NextAuth v5, correo y contraseña (`src/lib/auth.ts`), sesión JWT,
 - **Registro** — `/[locale]/register` → `registerUser()` crea el usuario
   directamente contra `prisma` (la tabla `users` no tiene RLS). No crea
   ningún contribuyente.
-- **Login** — `/[locale]/login`.
-- **Protección de rutas** — `src/proxy.ts` redirige a `/login` cualquier
-  ruta bajo `/periodos/` sin sesión. Next.js 16 renombró la convención de
-  `middleware.ts` a `proxy.ts`; con un directorio `src/`, además, solo
-  reconoce el archivo dentro de `src/`.
+- **Login** — `/[locale]/login`, `signIn()` de `next-auth/react` desde el
+  cliente.
+- **Logout** — botón en `/taxpayers` (`taxpayers/logout-button.tsx`),
+  `signOut()` de `next-auth/react`.
+- **Protección de rutas** — `src/proxy.ts` es una lista blanca, no una
+  lista negra: toda ruta exige sesión salvo `/login`, `/register` y la
+  portada (`/`, que solo redirige). Así una pantalla nueva queda protegida
+  por defecto sin que alguien tenga que acordarse de agregarla a una lista.
+  Next.js 16 renombró la convención de `middleware.ts` a `proxy.ts`; con un
+  directorio `src/`, además, solo reconoce el archivo dentro de `src/`.
 
-**No existe todavía** una pantalla de alta de contribuyente ni de selección
-de período ([`NEXT_STEPS.md`](../../NEXT_STEPS.md)). El puente manual es
-`scripts/seed-test-taxpayer.ts`.
+## 0. Contribuyentes y períodos
+
+**Rutas:** `/[locale]/(app)/taxpayers`, `/[locale]/(app)/taxpayers/new`,
+`/[locale]/(app)/[taxpayerId]/periodos`
+**Server Actions:** `getMyTaxpayers()`, `createTaxpayer()`
+(`taxpayers/actions.ts`); `getTaxpayer()`, `getTaxpayerPeriods()`,
+`createPeriod()` (`[taxpayerId]/periodos/actions.ts`)
+
+La portada (`/[locale]`) redirige: con sesión a `/taxpayers`, sin sesión a
+`/login`. Ya no hay rutas de demostración con ids fijos.
+
+- `/taxpayers` lista los contribuyentes del usuario (vía `user_taxpayers`,
+  filtrado por RLS) y lleva a `/taxpayers/new` o a
+  `/[taxpayerId]/periodos`.
+- `createTaxpayer()` calcula `activityFingerprint` con
+  `computeActivityFingerprint()` (`domain/iva/activity-fingerprint.ts` —
+  hash de las actividades económicas ordenadas, ADR-006) y crea el
+  `taxpayer` y su fila en `user_taxpayers` en la misma transacción
+  (`withUser`). Un RUC duplicado devuelve `RUC_IN_USE`, no una excepción sin
+  manejar.
+- `/[taxpayerId]/periodos` lista los períodos del contribuyente y permite
+  crear uno nuevo (año + mes → `periodStart`/`periodEnd`, mensual e IVA por
+  ahora). La restricción de unicidad real es
+  `(taxpayerId, taxType, periodStart)`, no año/mes como tales.
+
+**Los contribuyentes no se pueden borrar.** La tabla `taxpayers` solo tiene
+políticas RLS de `SELECT`/`INSERT`/`UPDATE` — ningún `DELETE`, ni siquiera
+para `is_system_admin()`. Con `FORCE ROW LEVEL SECURITY`, la ausencia de una
+política para un comando bloquea ese comando por completo, no solo lo
+filtra. Es deliberado (coherente con la bitácora inmutable de ADR-013): si
+se necesita en el futuro, es una decisión de producto nueva, no un `DELETE`
+que falte agregar.
 
 ## Acceso a datos
 
@@ -177,8 +211,6 @@ después.
 Ver [`NEXT_STEPS.md`](../../NEXT_STEPS.md) para la lista completa. Lo más
 relevante para entender el estado actual:
 
-- Alta de contribuyente y selección de período (sin esto, no hay forma de
-  usar la app sin `scripts/seed-test-taxpayer.ts`).
 - Administración del formulario (ADR-015) — sin esto, `result_mappings`
   nunca se llena y la pre-declaración no muestra casilleros.
 - Catálogo compartido (nivel 2) e IA (nivel 3) de la cascada de

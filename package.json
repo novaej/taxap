@@ -10,8 +10,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "DOTENV_CONFIG_PATH=.env.local tsx --import dotenv/config prisma/seed.ts",
-    "db:reset": "tsx scripts/db-reset.ts",
-    "seed:test-taxpayer": "DOTENV_CONFIG_PATH=.env.local tsx --import dotenv/config scripts/seed-test-taxpayer.ts"
+    "db:reset": "tsx scripts/db-reset.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

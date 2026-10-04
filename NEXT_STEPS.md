@@ -20,10 +20,6 @@ abrir a usuarios reales.
 
 ## Por construir
 
-- [ ] **Alta de contribuyente y selección de período.** No existe pantalla
-      todavía — `scripts/seed-test-taxpayer.ts` es el puente manual mientras
-      tanto. Sin esto, nadie puede usar la app sin tocar la base de datos a
-      mano.
 - [ ] **Administración del formulario** (`ADMIN`, importación de PDF,
       ADR-015). No se ha importado ningún formulario; `form_versions` y
       `form_fields` están vacías.
