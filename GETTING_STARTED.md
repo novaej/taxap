@@ -152,14 +152,18 @@ this walkthrough, see [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 To upload Form 104 or load a VAT rate you need an `ADMIN` account —
 normal registration (step 1) always creates `INDIVIDUAL` accounts.
 
+Set `ADMIN_EMAIL` (and `ADMIN_PASSWORD`, only needed the first time) in
+`.env.local`, then run the seed:
+
 ```bash
-npm run seed:admin -- email@example.com "secure-password"
+npm run db:seed
 ```
 
-If `email@example.com` already exists (for example, the account you used
-in step 1), the command promotes it to `ADMIN` without asking for a
-password. Log in with that account and the sidebar will show
-"Administration".
+If `ADMIN_EMAIL` already exists (for example, the account you used in
+step 1), this promotes it to `ADMIN` without touching its password. If
+it doesn't exist yet, it's created with `ADMIN_PASSWORD`. Either way
+it's safe to run again — re-seeding never duplicates the account. Log in
+with that account and the sidebar will show "Administration".
 
 On `/admin/formularios`, "New version" uploads a PDF — only to compute
 its fingerprint, it isn't saved — and creates a draft. Fields are added
@@ -173,9 +177,8 @@ verified yet (`docs/tax/tasas-iva.md`).
 | Command | What it does |
 |---|---|
 | `npm run db:migrate` | Applies pending migrations (`prisma migrate dev`) |
-| `npm run db:seed` | Seeds the plans (`prisma/seed.ts`) |
+| `npm run db:seed` | Seeds the plans, and the `ADMIN_EMAIL` account if that env var is set (`prisma/seed.ts`) |
 | `npm run db:reset` | Drops everything in `public` (tables, types, functions) and migrates + seeds again. Blocked if `NODE_ENV=production`. |
-| `npm run seed:admin -- <email> [password]` | Creates or promotes an account to `ADMIN` |
 
 Direct database access, if needed:
 

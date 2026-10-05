@@ -624,3 +624,30 @@ they left.
   once a period's supplier count makes it slow (`NEXT_STEPS.md`).
 - Cascade level 2 (shared catalog) still passes an empty array — only
   level 3 (AI) was built here.
+
+## [2026-10-04] One seed command instead of three database scripts
+
+### Removed
+- `npm run db:push` (`prisma db push`). Undocumented, unused anywhere in
+  this project's own workflow, and it bypasses migration tracking —
+  exactly what every other schema change here goes through. Schema
+  changes go through `npm run db:migrate` only; there's no "part of
+  migrate" to merge it into, since the two are alternative workflows
+  that don't compose.
+- `npm run seed:admin` and `scripts/seed-admin-user.ts`. Folded into
+  `prisma/seed.ts`.
+
+### Changed
+- `prisma/seed.ts` now also creates or promotes an `ADMIN` account, but
+  only if `ADMIN_EMAIL` is set in `.env.local` — most environments don't
+  need one seeded at all. Looked up by `email` (`@unique`) before
+  deciding whether to create (needs `ADMIN_PASSWORD`, >= 8 chars) or
+  just promote (password untouched) — re-running `npm run db:seed`, or
+  `db:reset` which calls it, never creates a duplicate account.
+  Verified directly against the real database: three consecutive runs
+  with the same `ADMIN_EMAIL` left exactly one `ADMIN` row, and a
+  missing/weak `ADMIN_PASSWORD` on first creation exits with an error
+  and leaves no partial user behind.
+- `.env.local.example` documents `ADMIN_EMAIL`/`ADMIN_PASSWORD`;
+  `GETTING_STARTED.md`'s admin section and command table updated to
+  match (`npm run db:seed` instead of `npm run seed:admin -- ...`).

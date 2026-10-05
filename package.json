@@ -8,10 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "db:migrate": "prisma migrate dev",
-    "db:push": "prisma db push",
     "db:seed": "DOTENV_CONFIG_PATH=.env.local tsx --import dotenv/config prisma/seed.ts",
-    "db:reset": "tsx scripts/db-reset.ts",
-    "seed:admin": "DOTENV_CONFIG_PATH=.env.local tsx --import dotenv/config scripts/seed-admin-user.ts"
+    "db:reset": "tsx scripts/db-reset.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
