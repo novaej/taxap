@@ -238,8 +238,13 @@ export async function classifyPeriod(
               : 'DETERMINISTIC'
         : undefined;
 
-      // A re-run that can't decide must not wipe an existing result.
-      const targets = decision ? invoices : invoices.filter((i) => i.processingStatus !== 'PROCESSED');
+      // A re-run that can't decide must not wipe an existing result --
+      // unless the AI did answer and was unsure: then the old result is
+      // the weaker evidence and the voucher goes back to review, with the
+      // answer recorded. When the AI wasn't consulted or failed (no key,
+      // provider error), nothing new is known, so the result stays.
+      const targets =
+        decision || aiResult ? invoices : invoices.filter((i) => i.processingStatus !== 'PROCESSED');
       if (targets.length === 0) continue;
 
       await tx.invoiceReceived.updateMany({

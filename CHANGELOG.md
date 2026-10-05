@@ -81,6 +81,10 @@ Imperative mood: "Add", not "Added".
   to `NEXT_STEPS.md`.
 
 ### Fixed
+- Reclassifying kept an old AI result silently when the new, better-informed
+  answer was below the 0.80 bar (no event, no explanation). Such vouchers
+  now go back to Pendientes with the model's answer recorded; an AI
+  failure or no-AI mode still leaves existing results untouched
 - AI classification ignored the buyer: the request had only the supplier,
   so nearly every ordinary-looking company came back as `CREDIT`. It now
   sends the buyer's economic activities and regime as ADR-007 specifies

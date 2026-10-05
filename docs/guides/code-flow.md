@@ -272,7 +272,9 @@ source isn't `USER`) or `{ invoiceIds }` ("Reclasificar automáticamente"
 on the selected rows, whatever their state). Manual decisions are never
 touched by `reclassify`, a supplier rule the user created still wins over
 the AI, and a re-run that can't decide leaves an already-`PROCESSED`
-voucher as it was. Every change logs an event with the old and new value.
+voucher as it was — unless the AI answered below 0.80, in which case the
+voucher goes back to Pendientes with the answer recorded (an AI failure or
+no-AI mode changes nothing). Every change logs an event with the old and new value.
 
 The "Sin IVA (informativo)" tab lists vouchers with `IVA = 0`: read-only,
 no selection, they never enter the cascade.
