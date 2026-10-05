@@ -162,7 +162,6 @@
     "severity": "Severidad",
     "readyMessage": "{count} comprobantes listos para clasificar",
     "continueToVentas": "Continuar a Ventas emitidas →",
-    "continueToConciliacion": "Continuar a Conciliación →",
     "alreadyLoaded": "Ya cargadas",
     "removeConfirm": "¿Eliminar este archivo y los {count} comprobantes que importó? Se pierden sus clasificaciones. No se puede deshacer.",
     "removeFiledError": "El período ya está declarado: no se puede modificar.",

@@ -40,9 +40,9 @@ export default async function IngestaPage({
           <AlertDescription className="flex items-center justify-between">
             <span>{t('readyMessage', { count: received.length + issued.length })}</span>
             <Link
-              href={`/${taxpayerId}/periodos/${periodId}/${issued.length > 0 ? 'ventas' : 'conciliacion'}`}
+              href={`/${taxpayerId}/periodos/${periodId}/ventas`}
             >
-              <Button variant="link">{issued.length > 0 ? t('continueToVentas') : t('continueToConciliacion')}</Button>
+              <Button variant="link">{t('continueToVentas')}</Button>
             </Link>
           </AlertDescription>
         </Alert>

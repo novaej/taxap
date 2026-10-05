@@ -69,8 +69,8 @@ Imperative mood: "Add", not "Added".
 
 ### Fixed
 - Ingestion: the "continue" link only appeared right after an upload. It
-  now shows whenever the period holds vouchers (to Issued sales if there
-  are any, otherwise straight to Reconciliation)
+  now shows whenever the period holds vouchers, and always points to the
+  next step (Issued sales)
 - Ingestion rejected vouchers dated on the last day of the period
   (e.g. 31/08/2026 as "outside period"): `parseDate` built a local-time
   date while the period bounds are UTC midnight, so west-of-UTC servers
