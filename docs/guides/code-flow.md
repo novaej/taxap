@@ -357,6 +357,10 @@ The admin belongs to the system: they upload/publish the form and load
 rates, but don't see taxpayer data or intervene in results — the
 disclaimer in `admin/layout.tsx` says so explicitly on screen.
 
+- **`updateFormVersion()` / `updateFormField()` / `updateTaxRate()`**
+  back the pencil icons. The first two refuse a `PUBLISHED` version
+  (immutable; a correction is a new version). A rate's `(tax,
+  valid_from)` key isn't editable — delete and recreate.
 - **`deleteFormVersion()` / `deleteTaxRate()`** back the trash buttons on
   the two admin lists (confirmation via `window.confirm`, like period
   deletion). A form version is refused (`IN_USE`) while any

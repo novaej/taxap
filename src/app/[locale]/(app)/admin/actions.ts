@@ -16,7 +16,10 @@ import type { ColumnKind, TaxRateType } from '@prisma/client';
 
 export async function getFormVersions() {
   await requireAdmin();
-  return asAdmin((tx) => tx.formVersion.findMany({ orderBy: { validFrom: 'desc' } }));
+  return asAdmin((tx) => tx.formVersion.findMany({
+      orderBy: { validFrom: 'desc' },
+      include: { _count: { select: { formFields: true } } },
+    }));
 }
 
 export async function getFormVersion(formVersionId: string) {
@@ -270,6 +273,98 @@ export async function deleteTaxRate(tax: TaxRateType, validFrom: string): Promis
   try {
     await asAdmin((tx) =>
       tx.taxRate.delete({ where: { tax_validFrom: { tax, validFrom: new Date(validFrom) } } })
+    );
+  } catch {
+    return { success: false, error: 'UNKNOWN' };
+  }
+  revalidatePath('/admin/tasas');
+  return { success: true };
+}
+
+export interface UpdateResult {
+  success: boolean;
+  error?: 'PUBLISHED' | 'DUPLICATE' | 'UNKNOWN';
+}
+
+async function isPublished(formVersionId: string) {
+  const v = await asAdmin((tx) =>
+    tx.formVersion.findUniqueOrThrow({ where: { id: formVersionId }, select: { status: true } })
+  );
+  return v.status === 'PUBLISHED';
+}
+
+/** Published versions are immutable (ADR-015): a correction is a new version. */
+export async function updateFormVersion(
+  formVersionId: string,
+  input: { label: string; validFrom: string }
+): Promise<UpdateResult> {
+  await requireAdmin();
+  if (await isPublished(formVersionId)) return { success: false, error: 'PUBLISHED' };
+  try {
+    await asAdmin((tx) =>
+      tx.formVersion.update({
+        where: { id: formVersionId },
+        data: { label: input.label, validFrom: new Date(input.validFrom) },
+      })
+    );
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes('Unique constraint')) {
+      return { success: false, error: 'DUPLICATE' };
+    }
+    return { success: false, error: 'UNKNOWN' };
+  }
+  revalidatePath('/admin/formularios');
+  revalidatePath(`/admin/formularios/${formVersionId}`);
+  return { success: true };
+}
+
+export async function updateFormField(
+  formVersionId: string,
+  fieldId: string,
+  input: { code: string; label: string; section?: string; columnKind: ColumnKind }
+): Promise<UpdateResult> {
+  await requireAdmin();
+  if (await isPublished(formVersionId)) return { success: false, error: 'PUBLISHED' };
+  try {
+    await asAdmin((tx) =>
+      tx.formField.update({
+        where: { id: fieldId },
+        data: {
+          code: input.code,
+          label: input.label,
+          section: input.section || null,
+          columnKind: input.columnKind,
+        },
+      })
+    );
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes('Unique constraint')) {
+      return { success: false, error: 'DUPLICATE' };
+    }
+    return { success: false, error: 'UNKNOWN' };
+  }
+  revalidatePath(`/admin/formularios/${formVersionId}`);
+  return { success: true };
+}
+
+/** The `(tax, valid_from)` key is not editable; change it by delete + create. */
+export async function updateTaxRate(
+  tax: TaxRateType,
+  validFrom: string,
+  input: { rate: string; validTo?: string; source: string; verifiedAt: string }
+): Promise<UpdateResult> {
+  await requireAdmin();
+  try {
+    await asAdmin((tx) =>
+      tx.taxRate.update({
+        where: { tax_validFrom: { tax, validFrom: new Date(validFrom) } },
+        data: {
+          rate: input.rate,
+          validTo: input.validTo ? new Date(input.validTo) : null,
+          source: input.source,
+          verifiedAt: new Date(input.verifiedAt),
+        },
+      })
     );
   } catch {
     return { success: false, error: 'UNKNOWN' };

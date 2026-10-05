@@ -12,7 +12,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -29,7 +28,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { addFormField, removeFormField, publishFormVersion } from '../../actions';
+import { Pencil, Trash2 } from 'lucide-react';
+import { addFormField, removeFormField, publishFormVersion, updateFormField } from '../../actions';
 
 type ColumnKind = 'GROSS' | 'NET' | 'TAX' | 'SINGLE';
 
@@ -52,6 +52,7 @@ export function FormFieldsClient({
   initialFields: FieldRow[];
 }) {
   const t = useTranslations('Admin');
+  const common = useTranslations('Common');
 
   const [fields, setFields] = useState(initialFields);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -62,6 +63,50 @@ export function FormFieldsClient({
   const [error, setError] = useState<string | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  function openAdd() {
+    setEditingId(null);
+    setCode('');
+    setLabel('');
+    setSection('');
+    setColumnKind('SINGLE');
+    setError(null);
+    setDialogOpen(true);
+  }
+
+  function openEdit(f: FieldRow) {
+    setEditingId(f.id);
+    setCode(f.code);
+    setLabel(f.label);
+    setSection(f.section ?? '');
+    setColumnKind(f.columnKind);
+    setError(null);
+    setDialogOpen(true);
+  }
+
+  async function handleSave() {
+    if (!editingId) return handleAddField();
+    setIsSubmitting(true);
+    setError(null);
+    const result = await updateFormField(formVersionId, editingId, {
+      code,
+      label,
+      section: section || undefined,
+      columnKind,
+    });
+    setIsSubmitting(false);
+    if (!result.success) {
+      setError(result.error === 'DUPLICATE' ? t('duplicateCodesError') : t('unknownError'));
+      return;
+    }
+    setFields((prev) =>
+      prev.map((f) =>
+        f.id === editingId ? { ...f, code, label, section: section || null, columnKind } : f
+      )
+    );
+    setDialogOpen(false);
+  }
 
   async function handleAddField() {
     setIsSubmitting(true);
@@ -122,14 +167,12 @@ export function FormFieldsClient({
         <h3 className="font-medium">{t('fieldsHeading')}</h3>
         {!isPublished && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                {t('addFieldButton')}
-              </Button>
-            </DialogTrigger>
+            <Button variant="outline" size="sm" onClick={openAdd}>
+              {t('addFieldButton')}
+            </Button>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{t('addFieldTitle')}</DialogTitle>
+                <DialogTitle>{editingId ? t('editFieldTitle') : t('addFieldTitle')}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -168,8 +211,8 @@ export function FormFieldsClient({
                 )}
               </div>
               <DialogFooter>
-                <Button onClick={handleAddField} disabled={isSubmitting || !code || !label}>
-                  {t('addFieldButton')}
+                <Button onClick={handleSave} disabled={isSubmitting || !code || !label}>
+                  {editingId ? common('save') : t('addFieldButton')}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -198,9 +241,24 @@ export function FormFieldsClient({
                 <TableCell>{f.section ?? '—'}</TableCell>
                 <TableCell>{t(`columnKindOptions.${f.columnKind}`)}</TableCell>
                 {!isPublished && (
-                  <TableCell>
-                    <Button variant="outline" size="sm" onClick={() => handleRemove(f.id)}>
-                      ×
+                  <TableCell className="text-right whitespace-nowrap">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title={t('editButton')}
+                      aria-label={t('editButton')}
+                      onClick={() => openEdit(f)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title={common('delete')}
+                      aria-label={common('delete')}
+                      onClick={() => handleRemove(f.id)}
+                    >
+                      <Trash2 className="size-4" />
                     </Button>
                   </TableCell>
                 )}

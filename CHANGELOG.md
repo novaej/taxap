@@ -24,6 +24,10 @@ Imperative mood: "Add", not "Added".
   `period_results` in the data model
 
 ### Changed
+- Admin: active tab highlighted; form versions listed as a table (code,
+  label, valid from, field count, status); edit dialogs for draft form
+  versions, their fields, and tax rates (published versions stay
+  immutable, ADR-015)
 - Period landing page (`/[taxpayerId]/periodos/[periodId]`) is now always
   the wizard overview (four step cards); Pre-filing moved to
   `.../predeclaracion` as step 4. A shared period layout renders the

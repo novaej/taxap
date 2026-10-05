@@ -12,7 +12,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Table,
@@ -22,8 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Trash2 } from 'lucide-react';
-import { createTaxRate, deleteTaxRate } from '../actions';
+import { Pencil, Trash2 } from 'lucide-react';
+import { createTaxRate, deleteTaxRate, updateTaxRate } from '../actions';
 
 interface RateRow {
   tax: string;
@@ -48,6 +47,57 @@ export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
+
+  const [editing, setEditing] = useState<RateRow | null>(null);
+
+  function openCreate() {
+    setEditing(null);
+    setRate('');
+    setValidFrom('');
+    setValidTo('');
+    setSource('');
+    setVerifiedAt('');
+    setError(null);
+    setDialogOpen(true);
+  }
+
+  function openEdit(r: RateRow) {
+    setEditing(r);
+    setRate((parseFloat(r.rate) * 100).toString());
+    setValidFrom(r.validFrom.slice(0, 10));
+    setValidTo(r.validTo ? r.validTo.slice(0, 10) : '');
+    setSource(r.source);
+    setVerifiedAt(r.verifiedAt.slice(0, 10));
+    setError(null);
+    setDialogOpen(true);
+  }
+
+  async function handleSave() {
+    if (!editing) return handleCreate();
+    setIsSubmitting(true);
+    setError(null);
+    const fraction = (parseFloat(rate) / 100).toString();
+    const result = await updateTaxRate(editing.tax as 'IVA', editing.validFrom, {
+      rate: fraction,
+      validTo: validTo || undefined,
+      source,
+      verifiedAt,
+    });
+    setIsSubmitting(false);
+    if (!result.success) {
+      setError(t('unknownError'));
+      return;
+    }
+    const key = editing;
+    setRates((prev) =>
+      prev.map((x) =>
+        x.tax === key.tax && x.validFrom === key.validFrom
+          ? { ...x, rate: fraction, validTo: validTo || null, source, verifiedAt }
+          : x
+      )
+    );
+    setDialogOpen(false);
+  }
 
   async function handleCreate() {
     setIsSubmitting(true);
@@ -96,12 +146,10 @@ export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
       )}
       <div className="mb-4 flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>{t('newRateButton')}</Button>
-          </DialogTrigger>
+          <Button onClick={openCreate}>{t('newRateButton')}</Button>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t('newRateTitle')}</DialogTitle>
+              <DialogTitle>{editing ? t('editRateTitle') : t('newRateTitle')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Alert>
@@ -113,7 +161,12 @@ export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
               </div>
               <div className="space-y-2">
                 <Label>{t('validFrom')}</Label>
-                <Input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+                <Input
+                  type="date"
+                  value={validFrom}
+                  disabled={editing !== null}
+                  onChange={(e) => setValidFrom(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>
@@ -141,10 +194,10 @@ export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
             </div>
             <DialogFooter>
               <Button
-                onClick={handleCreate}
+                onClick={handleSave}
                 disabled={isSubmitting || !rate || !validFrom || !source || !verifiedAt}
               >
-                {t('createRateButton')}
+                {editing ? common('save') : t('createRateButton')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -177,7 +230,16 @@ export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
                 </TableCell>
                 <TableCell>{r.source}</TableCell>
                 <TableCell>{new Date(r.verifiedAt).toLocaleDateString('es-EC', { timeZone: 'UTC' })}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right whitespace-nowrap">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title={t('editButton')}
+                    aria-label={t('editButton')}
+                    onClick={() => openEdit(r)}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon-sm"

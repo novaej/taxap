@@ -18,6 +18,7 @@ export default async function FormulariosPage() {
           label: v.label,
           validFrom: v.validFrom.toISOString(),
           status: v.status,
+          fieldCount: v._count.formFields,
         }))}
       />
     </div>
