@@ -68,6 +68,10 @@ Imperative mood: "Add", not "Added".
   to `NEXT_STEPS.md`.
 
 ### Fixed
+- Reconciliation said "all vouchers are classified" right after
+  ingestion: it opened on the empty "Pendientes" tab. It now opens on the
+  first non-empty tab, has a "Sin clasificar" tab and a classification
+  column, and notes how many vouchers have no IVA (never classified)
 - Ingestion: the "continue" link only appeared right after an upload. It
   now shows whenever the period holds vouchers, and always points to the
   next step (Issued sales)

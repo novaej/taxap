@@ -225,7 +225,12 @@
     "costOrExpense": "Costo o gasto",
     "exclude": "Excluir",
     "confirmClassification": "Confirmar clasificación",
-    "emptyState": "Todos los comprobantes están clasificados",
+    "emptyState": "No hay comprobantes en esta pestaña.",
+    "nothingClassifiedYet": "Todavía no se ha clasificado ningún comprobante.",
+    "tabUnclassified": "Sin clasificar",
+    "classification": "Clasificación",
+    "unclassifiedHint": "{count} comprobantes con IVA esperan clasificación.",
+    "noVatNote": "{count} comprobantes sin IVA no se clasifican.",
     "continueToPreDeclaration": "Continuar a pre-declaración →"
   },
   "Auth": {

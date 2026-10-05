@@ -31,9 +31,10 @@ interface PurchaseRow {
   total: string;
   ivaCategory: IvaCategory;
   processingStatus: ProcessingStatus;
+  hasVat: boolean;
 }
 
-type Tab = 'CREDIT' | 'COST_EXPENSE' | 'PENDING';
+type Tab = 'UNCLASSIFIED' | 'CREDIT' | 'COST_EXPENSE' | 'PENDING';
 
 export function ConciliacionTable({
   purchases,
@@ -46,20 +47,40 @@ export function ConciliacionTable({
 }) {
   const t = useTranslations('Conciliacion');
   const common = useTranslations('Common');
-  const [tab, setTab] = useState<Tab>('PENDING');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState('');
   const [isPending, startTransition] = useTransition();
 
+  // Vouchers without IVA never enter classification (CLAUDE.md), so they
+  // are left out of every tab and only counted in a note.
+  const noVat = purchases.filter((p) => !p.hasVat);
+  const unclassified = purchases.filter(
+    (p) => p.hasVat && p.processingStatus === 'UNCLASSIFIED'
+  );
   const withCredit = purchases.filter((p) => p.ivaCategory === 'CREDIT');
   const costExpense = purchases.filter((p) => p.ivaCategory === 'COST_EXPENSE');
   const pending = purchases.filter((p) => p.processingStatus === 'REQUIRES_MANUAL_REVIEW');
 
+  // Open on the first tab that has something, not on an empty one: an
+  // empty "Pendientes" read as "everything is classified".
+  const [tab, setTab] = useState<Tab>(() =>
+    unclassified.length > 0
+      ? 'UNCLASSIFIED'
+      : pending.length > 0
+        ? 'PENDING'
+        : withCredit.length > 0
+          ? 'CREDIT'
+          : costExpense.length > 0
+            ? 'COST_EXPENSE'
+            : 'UNCLASSIFIED'
+  );
+
   const visible = useMemo(() => {
+    if (tab === 'UNCLASSIFIED') return unclassified;
     if (tab === 'CREDIT') return withCredit;
     if (tab === 'COST_EXPENSE') return costExpense;
     return pending;
-  }, [tab, withCredit, costExpense, pending]);
+  }, [tab, unclassified, withCredit, costExpense, pending]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -89,11 +110,21 @@ export function ConciliacionTable({
 
   return (
     <div className="space-y-6">
-      <Button onClick={runCascade} disabled={isPending}>
-        {t('classifyButton')}
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={runCascade} disabled={isPending}>
+          {t('classifyButton')}
+        </Button>
+        {unclassified.length > 0 && (
+          <span className="text-sm text-muted-foreground">
+            {t('unclassifiedHint', { count: unclassified.length })}
+          </span>
+        )}
+      </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Button variant={tab === 'UNCLASSIFIED' ? 'default' : 'outline'} size="sm" onClick={() => setTab('UNCLASSIFIED')}>
+          {t('tabUnclassified')} ({unclassified.length})
+        </Button>
         <Button variant={tab === 'CREDIT' ? 'default' : 'outline'} size="sm" onClick={() => setTab('CREDIT')}>
           {t('tabWithCredit')} ({withCredit.length})
         </Button>
@@ -107,7 +138,11 @@ export function ConciliacionTable({
       </div>
 
       {visible.length === 0 ? (
-        <p className="text-muted-foreground">{t('emptyState')}</p>
+        <p className="text-muted-foreground">
+          {tab === 'UNCLASSIFIED' && purchases.length > 0 && pending.length + withCredit.length + costExpense.length === 0
+            ? t('nothingClassifiedYet')
+            : t('emptyState')}
+        </p>
       ) : (
         <div className="rounded-md border">
           <div className="flex items-center gap-3 border-b p-3">
@@ -140,6 +175,7 @@ export function ConciliacionTable({
                 <TableHead>{t('supplier')}</TableHead>
                 <TableHead>{t('ruc')}</TableHead>
                 <TableHead>{t('total')}</TableHead>
+                <TableHead>{t('classification')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -151,11 +187,26 @@ export function ConciliacionTable({
                   <TableCell>{p.supplierName}</TableCell>
                   <TableCell>{p.supplierRuc}</TableCell>
                   <TableCell>{p.total}</TableCell>
+                  <TableCell>
+                    <Badge variant={p.ivaCategory === 'UNCLASSIFIED' ? 'outline' : 'default'}>
+                      {p.ivaCategory === 'CREDIT'
+                        ? t('withCredit')
+                        : p.ivaCategory === 'COST_EXPENSE'
+                          ? t('costOrExpense')
+                          : p.processingStatus === 'REQUIRES_MANUAL_REVIEW'
+                            ? t('tabPending')
+                            : t('tabUnclassified')}
+                    </Badge>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {noVat.length > 0 && (
+        <p className="text-sm text-muted-foreground">{t('noVatNote', { count: noVat.length })}</p>
       )}
 
       <Link href={`/${taxpayerId}/periodos/${periodId}/predeclaracion`}>
