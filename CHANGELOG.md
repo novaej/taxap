@@ -60,6 +60,11 @@ Imperative mood: "Add", not "Added".
   to `NEXT_STEPS.md`.
 
 ### Fixed
+- Ingestion rejected vouchers dated on the last day of the period
+  (e.g. 31/08/2026 as "outside period"): `parseDate` built a local-time
+  date while the period bounds are UTC midnight, so west-of-UTC servers
+  pushed it past the end. It now builds UTC dates, matching the stored
+  `issueDate` and the access-key check
 - **Proportionality factor.** It had been documented that sales without
   VAT give a factor of zero. That's incorrect: exports and 0%-rated sales
   with credit entitlement add to the numerator (`1.0000` for someone who

@@ -276,7 +276,7 @@ export class IngestionService {
    */
   private parseDate(dateStr: string): Date {
     const [day, month, year] = dateStr.split(' ')[0].split('/').map(Number);
-    return new Date(year, month - 1, day);
+    return new Date(Date.UTC(year, month - 1, day));
   }
 }
 
