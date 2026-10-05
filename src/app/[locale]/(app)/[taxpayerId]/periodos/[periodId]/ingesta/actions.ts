@@ -199,17 +199,71 @@ export async function getPeriodIngestion(taxpayerId: string, periodId: string) {
         orderBy: { issueDate: 'asc' },
       }),
     ]);
-    return { files, received, issued };
+    const period = await tx.taxPeriod.findUniqueOrThrow({ where: { id: periodId } });
+    return { files, received, issued, isLocked: period.status === 'FILED' || !!period.lockedAt };
   });
 }
 
-export async function removeSourceFile(sourceFileId: string, taxpayerId: string, periodId: string) {
+export interface RemoveSourceFileResult {
+  success: boolean;
+  error?: 'PERIOD_FILED' | 'UNKNOWN';
+}
+
+/**
+ * Undoes one upload: deletes the vouchers it imported, its upload record
+ * and (if no other upload shares the same content hash) the stored file.
+ * Refused once the period is filed -- the DB lock trigger would reject it
+ * anyway (ADR-013). The period's computed results are dropped because
+ * they no longer match the vouchers; they're recomputed on demand.
+ * Classification events stay: the audit log is immutable and has no FK to
+ * the vouchers.
+ */
+export async function removeSourceFile(
+  sourceFileId: string,
+  taxpayerId: string,
+  periodId: string
+): Promise<RemoveSourceFileResult> {
   const userId = await getCurrentUserId();
-  const deleted = await withUser(userId, (tx) =>
-    tx.sourceFile.delete({ where: { id: sourceFileId } })
-  );
-  await deleteSourceFile(taxpayerId, deleted.sha256);
-  revalidatePath(`/${taxpayerId}/periodos/${periodId}/ingesta`);
+  try {
+    const orphanedSha = await withUser(userId, async (tx) => {
+      const period = await tx.taxPeriod.findFirstOrThrow({ where: { id: periodId, taxpayerId } });
+      if (period.status === 'FILED' || period.lockedAt) throw new Error('PERIOD_FILED');
+
+      const file = await tx.sourceFile.findFirstOrThrow({
+        where: { id: sourceFileId, taxpayerId, taxPeriodId: periodId },
+      });
+      const [received, issued] = await Promise.all([
+        tx.invoiceReceived.deleteMany({ where: { sourceFileId } }),
+        tx.invoiceIssued.deleteMany({ where: { sourceFileId } }),
+      ]);
+      await tx.periodResult.deleteMany({ where: { taxPeriodId: periodId } });
+      await tx.sourceFile.delete({ where: { id: sourceFileId } });
+      await tx.classificationEvent.create({
+        data: {
+          taxpayerId,
+          taxPeriodId: periodId,
+          field: 'source_file',
+          oldValue: file.filename,
+          newValue: null,
+          actorType: 'USER',
+          actorUserId: userId,
+          reason: `Upload removed with ${received.count + issued.count} vouchers`,
+        },
+      });
+
+      const sharing = await tx.sourceFile.count({ where: { taxpayerId, sha256: file.sha256 } });
+      return sharing === 0 ? file.sha256 : null;
+    });
+
+    if (orphanedSha) await deleteSourceFile(taxpayerId, orphanedSha);
+    revalidatePath(`/${taxpayerId}/periodos/${periodId}`, 'layout');
+    return { success: true };
+  } catch (err) {
+    if (err instanceof Error && err.message === 'PERIOD_FILED') {
+      return { success: false, error: 'PERIOD_FILED' };
+    }
+    return { success: false, error: 'UNKNOWN' };
+  }
 }
 
 function parseSriDate(value: string): Date {

@@ -6,6 +6,8 @@ Imperative mood: "Add", not "Added".
 ## [Unreleased]
 
 ### Added
+- Ingestion: delete an upload (trash icon) with the vouchers it imported;
+  blocked on filed periods, logged as a `source_file` event
 - `docs/site/screens/`: specifications for ingestion, issued sales,
   reconciliation, pre-filing, and form administration — the contract for
   each screen before building it

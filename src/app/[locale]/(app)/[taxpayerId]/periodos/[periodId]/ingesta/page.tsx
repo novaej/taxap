@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import { getPeriodIngestion } from './actions';
 import { IngestaClient } from './ingesta-client';
+import { RemoveFileButton } from './remove-file-button';
 
 const fmtDate = (d: Date) => d.toLocaleDateString('es-EC', { timeZone: 'UTC' });
 const fmtDateTime = (d: Date) => d.toLocaleString('es-EC');
@@ -21,7 +22,7 @@ export default async function IngestaPage({
 }) {
   const { taxpayerId, periodId } = await params;
   const t = await getTranslations('Ingesta');
-  const { files, received, issued } = await getPeriodIngestion(taxpayerId, periodId);
+  const { files, received, issued, isLocked } = await getPeriodIngestion(taxpayerId, periodId);
 
   return (
     <div>
@@ -49,6 +50,7 @@ export default async function IngestaPage({
                     <TableHead className="text-right">{t('totalRows')}</TableHead>
                     <TableHead className="text-right">{t('imported')}</TableHead>
                     <TableHead className="text-right">{t('errors')}</TableHead>
+                    <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -62,6 +64,16 @@ export default async function IngestaPage({
                       <TableCell className="text-right">{f.rowCount}</TableCell>
                       <TableCell className="text-right">{f.rowsImported}</TableCell>
                       <TableCell className="text-right">{f.rowsRejected}</TableCell>
+                      <TableCell>
+                        {!isLocked && (
+                          <RemoveFileButton
+                            sourceFileId={f.id}
+                            taxpayerId={taxpayerId}
+                            periodId={periodId}
+                            importedCount={f.rowsImported}
+                          />
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

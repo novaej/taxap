@@ -180,14 +180,21 @@ Per file:
    `src/services/storage/`) at `storage/<taxpayerId>/<sha256>.txt`,
    inside the DB transaction and before the `source_files` insert, so a
    failed write leaves no row pointing at a missing file; keyed by hash
-   so a retry overwrites instead of piling up orphans. `removeSourceFile()`
-   deletes both the `source_files` row and this file (the vouchers stay:
-   their `source_file_id` is set to null).
+   so a retry overwrites instead of piling up orphans.
 4. Register it in `source_files`.
 
 The page (`ingesta/page.tsx`, server) also lists what the period already
 holds via `getPeriodIngestion()`: upload history plus the received and
 issued vouchers; `ingesta-client.tsx` is the upload form and result.
+
+**Removing an upload** (`removeSourceFile()`, trash icon per file): in one
+transaction it deletes the vouchers imported from that file, the period's
+computed `period_results` (stale now; recomputed on demand) and the
+`source_files` row, and logs a `source_file` event. Afterwards the stored
+copy is deleted unless another upload of the same taxpayer has the same
+hash. Refused once the period is filed/locked. Classification events are
+kept (immutable, no FK to vouchers); learned supplier rules are kept too.
+Several files per period are fine: dedup is by access key.
 
 Per row (`ingestionService.validateReceivedRow`/`validateIssuedRow`):
 1. Decompose the `CLAVE_ACCESO` and cross-check it against date, type,
