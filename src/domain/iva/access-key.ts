@@ -88,7 +88,7 @@ export function parseAccessKey(accessKey: string): DecomposedAccessKey {
     );
   }
 
-  const emissionDate = new Date(year, month - 1, day);
+  const emissionDate = new Date(Date.UTC(year, month - 1, day));
   // Check if date is valid (Date constructor is lenient)
   if (
     emissionDate.getUTCDate() !== day ||

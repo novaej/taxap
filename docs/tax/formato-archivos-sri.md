@@ -30,7 +30,7 @@ Real row:
 |---|---|---|
 | `RUC_EMISOR` | 13 digits | The supplier |
 | `RAZON_SOCIAL_EMISOR` | text | Main classification signal |
-| `TIPO_COMPROBANTE` | text | Allowlist — [ADR-010](../adr/010-tratamiento-por-tipo-de-comprobante.md) |
+| `TIPO_COMPROBANTE` | text | Holds the type's **name** (verified: `Factura`), not the SRI code. The allowlist ([ADR-010](../adr/010-tratamiento-por-tipo-de-comprobante.md)) is checked against the code in digits 9-10 of `CLAVE_ACCESO` (`01` = invoice) |
 | `SERIE_COMPROBANTE` | `EEE-PPP-SSSSSSSSS` | Establishment, emission point, sequence number |
 | `CLAVE_ACCESO` | 49 digits | Deduplication key — see below |
 | `FECHA_AUTORIZACION` | `DD/MM/AAAA HH:MM:SS` | |

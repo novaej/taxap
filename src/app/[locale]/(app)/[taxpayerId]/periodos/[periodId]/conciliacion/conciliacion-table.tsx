@@ -6,6 +6,8 @@ import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Sparkles } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -110,16 +112,17 @@ export function ConciliacionTable({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={runCascade} disabled={isPending}>
-          {t('classifyButton')}
-        </Button>
-        {unclassified.length > 0 && (
-          <span className="text-sm text-muted-foreground">
-            {t('unclassifiedHint', { count: unclassified.length })}
-          </span>
-        )}
-      </div>
+      {unclassified.length > 0 && (
+        <Alert className="border-primary">
+          <Sparkles className="size-4 text-primary" />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>{t('unclassifiedHint', { count: unclassified.length })}</span>
+            <Button onClick={runCascade} disabled={isPending}>
+              {isPending ? t('classifying') : t('classifyButton')}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Button variant={tab === 'UNCLASSIFIED' ? 'default' : 'outline'} size="sm" onClick={() => setTab('UNCLASSIFIED')}>
@@ -136,6 +139,15 @@ export function ConciliacionTable({
           {pending.length > 0 && <Badge variant="destructive" className="ml-1">•</Badge>}
         </Button>
       </div>
+
+      {tab === 'PENDING' && pending.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+          <span>{t('pendingHint')}</span>
+          <Button variant="outline" size="sm" onClick={runCascade} disabled={isPending}>
+            {isPending ? t('classifying') : t('retryClassify')}
+          </Button>
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <p className="text-muted-foreground">

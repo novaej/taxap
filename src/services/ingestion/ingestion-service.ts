@@ -87,8 +87,9 @@ export class IngestionService {
     const accessKey = row.CLAVE_ACCESO;
 
     // 1. Access key format and check digit
+    let voucherCode: string | null = null;
     try {
-      parseAccessKey(accessKey);
+      voucherCode = parseAccessKey(accessKey).documentType;
     } catch (err) {
       if (err instanceof AccessKeyInvalidError) {
         errors.push({
@@ -159,9 +160,12 @@ export class IngestionService {
     }
 
     // 5. Voucher type whitelisted
-    if (!VOUCHER_TYPE_WHITELIST.has(row.TIPO_COMPROBANTE)) {
+    // The allowlist is keyed on SRI type codes, which the file's
+    // TIPO_COMPROBANTE column does not carry (it holds names such as
+    // "Factura"); the code is digits 9-10 of the access key.
+    if (!voucherCode || !VOUCHER_TYPE_WHITELIST.has(voucherCode)) {
       warnings.push(
-        `Voucher type ${row.TIPO_COMPROBANTE} not in whitelist; will be marked for manual review`
+        `Voucher type ${voucherCode ?? row.TIPO_COMPROBANTE} not in whitelist; will be marked for manual review`
       );
     }
 

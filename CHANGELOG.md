@@ -68,10 +68,22 @@ Imperative mood: "Add", not "Added".
   to `NEXT_STEPS.md`.
 
 ### Fixed
+- Classification never ran for any voucher: the type allowlist is keyed
+  on SRI codes ("01") but the file's `TIPO_COMPROBANTE` holds names
+  ("Factura"), so every voucher counted as an unrecognized type and went
+  straight to manual review without reaching the cascade or the AI. The
+  type is now read from the access key (digits 9-10), in both ingestion
+  and `classifyPeriod`. Re-running classification also picks up vouchers
+  an earlier run left in manual review, and the Pendientes tab has a
+  retry button
+- `parseAccessKey` built its date in local time but checked it with UTC
+  getters (wrong east of UTC); it now builds a UTC date
 - Reconciliation said "all vouchers are classified" right after
   ingestion: it opened on the empty "Pendientes" tab. It now opens on the
   first non-empty tab, has a "Sin clasificar" tab and a classification
-  column, and notes how many vouchers have no IVA (never classified)
+  column, and notes how many vouchers have no IVA (never classified).
+  The classify button now lives in a banner shown while vouchers are
+  waiting
 - Ingestion: the "continue" link only appeared right after an upload. It
   now shows whenever the period holds vouchers, and always points to the
   next step (Issued sales)

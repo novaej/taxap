@@ -210,7 +210,10 @@
   },
   "Conciliacion": {
     "title": "Conciliación de compras",
-    "classifyButton": "Clasificar comprobantes pendientes",
+    "classifyButton": "Clasificar ahora",
+    "classifying": "Clasificando…",
+    "pendingHint": "El motor automático no pudo decidir estos comprobantes: clasifícalos a mano o vuelve a intentarlo.",
+    "retryClassify": "Reintentar clasificación automática",
     "tabWithCredit": "Con crédito tributario",
     "tabCostExpense": "Costo o gasto",
     "tabPending": "Pendientes",
@@ -229,7 +232,7 @@
     "nothingClassifiedYet": "Todavía no se ha clasificado ningún comprobante.",
     "tabUnclassified": "Sin clasificar",
     "classification": "Clasificación",
-    "unclassifiedHint": "{count} comprobantes con IVA esperan clasificación.",
+    "unclassifiedHint": "Hay {count} comprobantes con IVA sin clasificar. Clasifícalos para continuar.",
     "noVatNote": "{count} comprobantes sin IVA no se clasifican.",
     "continueToPreDeclaration": "Continuar a pre-declaración →"
   },

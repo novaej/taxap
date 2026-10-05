@@ -6,6 +6,7 @@ import { getCurrentUserId } from '@/lib/session';
 import { classificationCascade, requiresManualReview } from '@/domain/iva';
 import type { IvaCategoryEnum } from '@/domain/types';
 import { VOUCHER_TYPE_WHITELIST } from '@/services/ingestion';
+import { parseAccessKey } from '@/domain/iva/access-key';
 import { getAiClassifier } from '@/services/ai';
 import type { SupplierClassificationResult } from '@/services/ai';
 import type { IvaCategory, ProcessingStatus, ClassificationSourceType } from '@prisma/client';
@@ -34,7 +35,10 @@ export async function classifyPeriod(taxpayerId: string, periodId: string) {
       where: {
         taxpayerId,
         taxPeriodId: periodId,
-        processingStatus: 'UNCLASSIFIED',
+        // REQUIRES_MANUAL_REVIEW is what an earlier engine run left
+        // unresolved (a manual decision makes it PROCESSED), so re-running
+        // may now resolve it -- e.g. once an AI key is configured.
+        processingStatus: { in: ['UNCLASSIFIED', 'REQUIRES_MANUAL_REVIEW'] },
         vatAmount: { gt: 0 },
       },
     });
@@ -51,9 +55,16 @@ export async function classifyPeriod(taxpayerId: string, periodId: string) {
     for (const [supplierRuc, invoices] of bySupplier) {
       // ADR-010: a single unrecognized type in the group sends the whole
       // supplier to manual review, without going through the cascade.
-      const allRecognized = invoices.every((inv) =>
-        VOUCHER_TYPE_WHITELIST.has(inv.documentType)
-      );
+      // The allowlist is keyed on SRI type codes; the stored
+      // `documentType` is the file's name ("Factura"), so use the code
+      // embedded in the access key.
+      const allRecognized = invoices.every((inv) => {
+        try {
+          return VOUCHER_TYPE_WHITELIST.has(parseAccessKey(inv.accessKey).documentType);
+        } catch {
+          return false;
+        }
+      });
       const needsReview = requiresManualReview(allRecognized);
 
       const existingRule = await tx.supplierRule.findFirst({
