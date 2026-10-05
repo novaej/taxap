@@ -26,6 +26,7 @@ Imperative mood: "Add", not "Added".
   `period_results` in the data model
 
 ### Changed
+- Ingestion: the file input is cleared after a successful upload
 - Ingestion: the screen now lists what the period already has (uploaded
   files with imported/rejected counts, and the received/issued vouchers).
   Rows already imported by an earlier upload are reported as "ya

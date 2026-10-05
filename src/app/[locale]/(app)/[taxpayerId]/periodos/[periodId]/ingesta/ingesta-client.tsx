@@ -28,6 +28,9 @@ export function IngestaClient() {
   const t = useTranslations('Ingesta');
   const params = useParams<{ taxpayerId: string; periodId: string }>();
   const [file, setFile] = useState<File | null>(null);
+  // Bumping the key remounts the uncontrolled file input, which is the
+  // only way to clear its selection.
+  const [inputKey, setInputKey] = useState(0);
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -46,6 +49,8 @@ export function IngestaClient() {
         return;
       }
       setResult(res);
+      setFile(null);
+      setInputKey((k) => k + 1);
     });
   }
 
@@ -57,6 +62,7 @@ export function IngestaClient() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Input
+            key={inputKey}
             type="file"
             accept=".txt"
             disabled={isPending}
