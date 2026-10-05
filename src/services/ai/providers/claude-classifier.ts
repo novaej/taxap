@@ -29,7 +29,12 @@ export class ClaudeClassifier implements AiClassifier {
   private client: Anthropic;
 
   constructor() {
-    this.client = new Anthropic();
+    // A key that isn't scoped to a workspace is rejected unless the request
+    // names one. Omitted when unset, so scoped keys keep working as before.
+    const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+    this.client = new Anthropic(
+      workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : undefined
+    );
   }
 
   async classifySupplier(

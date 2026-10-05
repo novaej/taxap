@@ -212,6 +212,7 @@
     "title": "Conciliación de compras",
     "classifyButton": "Clasificar ahora",
     "classifying": "Clasificando…",
+    "aiFailed": "La IA falló en {count} proveedores y quedaron en Pendientes. Detalle:",
     "pendingHint": "El motor automático no pudo decidir estos comprobantes: clasifícalos a mano o vuelve a intentarlo.",
     "retryClassify": "Reintentar clasificación automática",
     "tabWithCredit": "Con crédito tributario",

@@ -33,13 +33,20 @@ export interface ClassifyOptions {
   reclassify?: boolean;
 }
 
+export interface ClassifyResult {
+  /** Suppliers whose AI call failed; they are left for manual review. */
+  aiFailures: number;
+  aiError?: string;
+}
+
 export async function classifyPeriod(
   taxpayerId: string,
   periodId: string,
   options: ClassifyOptions = {}
-) {
+): Promise<ClassifyResult> {
   const userId = await getCurrentUserId();
   const aiClassifier = getAiClassifier(); // null in no-AI mode (ADR-007)
+  const result: ClassifyResult = { aiFailures: 0 };
 
   await withUser(userId, async (tx) => {
     // Default: only what is still open. REQUIRES_MANUAL_REVIEW is what an
@@ -99,11 +106,19 @@ export async function classifyPeriod(
       // supplier's own identity, never the taxpayer's RUC or name.
       let aiResult: SupplierClassificationResult | null = null;
       if (!needsReview && !existingRule && aiClassifier) {
-        aiResult = await aiClassifier.classifySupplier({
-          supplierRuc,
-          supplierName: representative.supplierName,
-          documentType: representative.documentType,
-        });
+        try {
+          aiResult = await aiClassifier.classifySupplier({
+            supplierRuc,
+            supplierName: representative.supplierName,
+            documentType: representative.documentType,
+          });
+        } catch (err) {
+          // A provider/config failure must not roll back the whole run:
+          // the supplier falls through to manual review and the failure
+          // is reported to the screen.
+          result.aiFailures += 1;
+          result.aiError ??= err instanceof Error ? err.message : String(err);
+        }
       }
 
       const decision = needsReview
@@ -176,6 +191,7 @@ export async function classifyPeriod(
   });
 
   revalidatePath(`/${taxpayerId}/periodos/${periodId}/conciliacion`);
+  return result;
 }
 
 /**

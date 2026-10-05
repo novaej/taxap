@@ -73,6 +73,12 @@ Imperative mood: "Add", not "Added".
   to `NEXT_STEPS.md`.
 
 ### Fixed
+- Classification with AI failed for a key not scoped to a workspace
+  (400, "must include the anthropic-workspace-id header"), and the whole
+  run aborted silently. `ANTHROPIC_WORKSPACE_ID` is now an optional env
+  var sent as that header, and an AI failure no longer aborts the run:
+  the affected suppliers stay in Pendientes and the screen shows the
+  provider's error
 - Classification never ran for any voucher: the type allowlist is keyed
   on SRI codes ("01") but the file's `TIPO_COMPROBANTE` holds names
   ("Factura"), so every voucher counted as an unrecognized type and went

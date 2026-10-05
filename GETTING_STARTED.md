@@ -87,6 +87,9 @@ The two providers (`src/services/ai/`) implement the same `AiClassifier`
 interface, so switching one for the other is just `AI_PROVIDER` -- no code
 change.
 
+If the AI call fails with *"This API key is not scoped to a workspace"*, set
+`ANTHROPIC_WORKSPACE_ID` to your workspace id (or use a workspace-scoped key).
+
 ## 3. Dependencies and schema
 
 ```bash

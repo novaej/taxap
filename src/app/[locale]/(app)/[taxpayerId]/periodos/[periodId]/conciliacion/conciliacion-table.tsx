@@ -95,21 +95,31 @@ export function ConciliacionTable({
     });
   }
 
+  const [aiError, setAiError] = useState<{ count: number; message: string } | null>(null);
+
+  function run(options?: Parameters<typeof classifyPeriod>[2]) {
+    setAiError(null);
+    startTransition(async () => {
+      const result = await classifyPeriod(taxpayerId, periodId, options);
+      if (result.aiFailures > 0) {
+        setAiError({ count: result.aiFailures, message: result.aiError ?? '' });
+      }
+    });
+  }
+
   function runCascade() {
-    startTransition(() => classifyPeriod(taxpayerId, periodId));
+    run();
   }
 
   function reclassifySelected() {
     if (selected.size === 0) return;
-    startTransition(async () => {
-      await classifyPeriod(taxpayerId, periodId, { invoiceIds: Array.from(selected) });
-      setSelected(new Set());
-    });
+    run({ invoiceIds: Array.from(selected) });
+    setSelected(new Set());
   }
 
   function reclassifyAll() {
     if (!window.confirm(t('reclassifyAllConfirm'))) return;
-    startTransition(() => classifyPeriod(taxpayerId, periodId, { reclassify: true }));
+    run({ reclassify: true });
   }
 
   function applyBulk() {
@@ -128,6 +138,14 @@ export function ConciliacionTable({
 
   return (
     <div className="space-y-6">
+      {aiError && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {t('aiFailed', { count: aiError.count })} {aiError.message}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {unclassified.length > 0 && (
         <Alert className="border-primary">
           <Sparkles className="size-4 text-primary" />
