@@ -22,6 +22,36 @@ export async function getPurchasesByStatus(taxpayerId: string, periodId: string)
 }
 
 /**
+ * The latest AI answer per voucher (confidence + the model's own
+ * explanation), from the audit log, for the review dialog.
+ */
+export async function getAiNotes(taxpayerId: string, periodId: string) {
+  const userId = await getCurrentUserId();
+  const events = await withUser(userId, (tx) =>
+    tx.classificationEvent.findMany({
+      where: {
+        taxpayerId,
+        taxPeriodId: periodId,
+        receivedInvoiceId: { not: null },
+        aiReasoning: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  );
+  const notes = new Map<string, { confidence: string; reasoning: string; modelId: string }>();
+  for (const e of events) {
+    if (e.receivedInvoiceId && !notes.has(e.receivedInvoiceId)) {
+      notes.set(e.receivedInvoiceId, {
+        confidence: e.aiConfidence?.toString() ?? '',
+        reasoning: e.aiReasoning ?? '',
+        modelId: e.modelId ?? '',
+      });
+    }
+  }
+  return notes;
+}
+
+/**
  * Step 2 of ingestion (ADR-011): groups by supplier and runs the
  * four-level cascade (ADR-005). Resumable -- only touches what's still
  * unclassified.

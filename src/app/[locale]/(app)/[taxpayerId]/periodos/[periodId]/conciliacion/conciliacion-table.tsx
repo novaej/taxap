@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { RefreshCw, Sparkles } from 'lucide-react';
+import { Info, RefreshCw, Sparkles } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -23,6 +23,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { classifyPeriod, applyManualClassification } from './actions';
 import type { IvaCategory, ProcessingStatus } from '@prisma/client';
 
@@ -36,6 +42,7 @@ interface PurchaseRow {
   hasVat: boolean;
   issueDate: string;
   series: string;
+  aiNote: { confidence: string; reasoning: string; modelId: string } | null;
 }
 
 type Tab = 'UNCLASSIFIED' | 'CREDIT' | 'COST_EXPENSE' | 'NON_DEDUCTIBLE' | 'PENDING' | 'NO_VAT';
@@ -99,6 +106,7 @@ export function ConciliacionTable({
     });
   }
 
+  const [detail, setDetail] = useState<PurchaseRow | null>(null);
   const [aiError, setAiError] = useState<{ count: number; message: string } | null>(null);
 
   function run(options?: Parameters<typeof classifyPeriod>[2]) {
@@ -298,7 +306,7 @@ export function ConciliacionTable({
                   <TableCell>{p.supplierName}</TableCell>
                   <TableCell>{p.supplierRuc}</TableCell>
                   <TableCell>{p.total}</TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <Badge variant={p.ivaCategory === 'UNCLASSIFIED' ? 'outline' : 'default'}>
                       {p.ivaCategory === 'CREDIT'
                         ? t('withCredit')
@@ -310,6 +318,17 @@ export function ConciliacionTable({
                             ? t('tabPending')
                             : t('tabUnclassified')}
                     </Badge>
+                    {p.aiNote && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        title={t('aiDetailTitle')}
+                        aria-label={t('aiDetailTitle')}
+                        onClick={() => setDetail(p)}
+                      >
+                        <Info className="size-4" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -324,6 +343,27 @@ export function ConciliacionTable({
       <Link href={`/${taxpayerId}/periodos/${periodId}/predeclaracion`}>
         <Button variant="link">{t('continueToPreDeclaration')}</Button>
       </Link>
+
+      <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('aiDetailTitle')}</DialogTitle>
+          </DialogHeader>
+          {detail?.aiNote && (
+            <div className="space-y-3 text-sm">
+              <p className="font-medium">
+                {detail.supplierName} · {detail.supplierRuc}
+              </p>
+              <p className="text-muted-foreground">
+                {t('aiConfidence')}: {Math.round(parseFloat(detail.aiNote.confidence) * 100)}% ·{' '}
+                {detail.aiNote.modelId}
+              </p>
+              <p className="whitespace-pre-line">{detail.aiNote.reasoning}</p>
+              <p className="text-xs text-muted-foreground">{t('aiDetailFootnote')}</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

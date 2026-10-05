@@ -6,6 +6,8 @@ Imperative mood: "Add", not "Added".
 ## [Unreleased]
 
 ### Added
+- Reconciliation: an info icon next to a voucher's classification opens the
+  AI's confidence, model and explanation
 - `classification_events.ai_confidence` and `ai_reasoning` (migration
   `add_event_ai_reasoning`): the model's confidence and explanation are
   stored whenever it was consulted, including answers below the

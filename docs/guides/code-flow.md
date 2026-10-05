@@ -308,7 +308,9 @@ professional-services business; without it every ordinary-looking company
 came back as `CREDIT` (prompt `supplier-classification-v2`). A `classification_events` row for a supplier the AI was consulted about
 records `model_id`, `prompt_version`, `ai_confidence` and `ai_reasoning`
 (also when the answer was below 0.80 and the voucher went to review, so
-the row explains why). The prompt text itself isn't stored: it lives in
+the row explains why; the Conciliación table shows the latest one in an
+info dialog next to each voucher's classification, via `getAiNotes()`).
+The prompt text itself isn't stored: it lives in
 code and `prompt_version` points to it
 (`PROMPT_VERSION` in `src/services/ai/types.ts`, bumped whenever the
 prompt's wording or schema changes).
