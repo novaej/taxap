@@ -307,10 +307,14 @@ records which `model_id` and `prompt_version` produced it
 prompt's wording or schema changes).
 
 **Not yet done:** the Batch API pass CLAUDE.md's model table calls for
-("Batch API para el pase masivo") — `classifyPeriod()` currently asks
-per supplier, synchronously, inside the loop. Fine at today's volume;
-revisit once a period's supplier count makes that slow
-([`NEXT_STEPS.md`](../../NEXT_STEPS.md)).
+("Batch API para el pase masivo"). `classifyPeriod()` runs in three
+phases so no AI call sits inside a DB transaction (Prisma's 5 s limit
+expired it with ~23 suppliers): (1) read vouchers, taxpayer and rules in
+one transaction; (2) ask the AI per supplier, 5 at a time, outside any
+transaction (a failure is counted and reported, not thrown); (3) decide
+and write with `updateMany`/`createMany` in one short transaction. Still
+synchronous within the request — revisit once a period's supplier count
+makes that slow ([`NEXT_STEPS.md`](../../NEXT_STEPS.md)).
 
 **`applyManualClassification()`** — manual classification, single or in
 bulk:

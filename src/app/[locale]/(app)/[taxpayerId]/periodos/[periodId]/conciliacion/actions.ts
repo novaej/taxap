@@ -26,6 +26,23 @@ export async function getPurchasesByStatus(taxpayerId: string, periodId: string)
  * four-level cascade (ADR-005). Resumable -- only touches what's still
  * unclassified.
  */
+/** How many AI requests run at once (one per supplier). */
+const AI_CONCURRENCY = 5;
+
+async function mapWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
+      await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
 export interface ClassifyOptions {
   /** Re-run exactly these vouchers, whatever their current state. */
   invoiceIds?: string[];
@@ -48,7 +65,12 @@ export async function classifyPeriod(
   const aiClassifier = getAiClassifier(); // null in no-AI mode (ADR-007)
   const result: ClassifyResult = { aiFailures: 0 };
 
-  await withUser(userId, async (tx) => {
+  // Three phases, so no AI call ever runs inside a DB transaction (Prisma's
+  // interactive transactions expire after 5 s, and one AI call per
+  // supplier easily exceeds that): read, ask the AI, write.
+
+  // Phase 1 -- read.
+  const { pending, taxpayer, rules } = await withUser(userId, async (tx) => {
     // Default: only what is still open. REQUIRES_MANUAL_REVIEW is what an
     // earlier engine run left unresolved (a manual decision makes it
     // PROCESSED), so re-running may now resolve it -- e.g. once an AI key
@@ -69,57 +91,81 @@ export async function classifyPeriod(
         ...statusFilter,
       },
     });
-
-    const bySupplier = new Map<string, typeof pending>();
-    for (const invoice of pending) {
-      const key = invoice.supplierRuc;
-      if (!bySupplier.has(key)) bySupplier.set(key, []);
-      bySupplier.get(key)!.push(invoice);
-    }
-
     const taxpayer = await tx.taxpayer.findUniqueOrThrow({ where: { id: taxpayerId } });
+    const rules = await tx.supplierRule.findMany({
+      where: {
+        taxpayerId,
+        revokedAt: null,
+        supplierRuc: { in: [...new Set(pending.map((i) => i.supplierRuc))] },
+      },
+    });
+    return { pending, taxpayer, rules };
+  });
 
-    for (const [supplierRuc, invoices] of bySupplier) {
-      // ADR-010: a single unrecognized type in the group sends the whole
-      // supplier to manual review, without going through the cascade.
-      // The allowlist is keyed on SRI type codes; the stored
-      // `documentType` is the file's name ("Factura"), so use the code
-      // embedded in the access key.
-      const allRecognized = invoices.every((inv) => {
-        try {
-          return VOUCHER_TYPE_WHITELIST.has(parseAccessKey(inv.accessKey).documentType);
-        } catch {
-          return false;
-        }
-      });
-      const needsReview = requiresManualReview(allRecognized);
+  const bySupplier = new Map<string, typeof pending>();
+  for (const invoice of pending) {
+    const key = invoice.supplierRuc;
+    if (!bySupplier.has(key)) bySupplier.set(key, []);
+    bySupplier.get(key)!.push(invoice);
+  }
+  const ruleBySupplier = new Map(rules.map((r) => [r.supplierRuc, r]));
 
-      const existingRule = await tx.supplierRule.findFirst({
-        where: { taxpayerId, supplierRuc, revokedAt: null },
-      });
-
-      const representative = invoices[0];
-
-      // Only worth asking the AI if levels 1-2 wouldn't already decide --
-      // ADR-005's order is rule > catalog > AI, and a rule hit makes an AI
-      // call pure unused cost. ADR-007: the request carries only the
-      // supplier's own identity, never the taxpayer's RUC or name.
-      let aiResult: SupplierClassificationResult | null = null;
-      if (!needsReview && !existingRule && aiClassifier) {
-        try {
-          aiResult = await aiClassifier.classifySupplier({
-            supplierRuc,
-            supplierName: representative.supplierName,
-            documentType: representative.documentType,
-          });
-        } catch (err) {
-          // A provider/config failure must not roll back the whole run:
-          // the supplier falls through to manual review and the failure
-          // is reported to the screen.
-          result.aiFailures += 1;
-          result.aiError ??= err instanceof Error ? err.message : String(err);
-        }
+  // ADR-010: a single unrecognized type in the group sends the whole
+  // supplier to manual review, without going through the cascade.
+  // The allowlist is keyed on SRI type codes; the stored `documentType`
+  // is the file's name ("Factura"), so use the code embedded in the
+  // access key.
+  const needsReviewBySupplier = new Map<string, boolean>();
+  const allRecognizedBySupplier = new Map<string, boolean>();
+  for (const [supplierRuc, invoices] of bySupplier) {
+    const allRecognized = invoices.every((inv) => {
+      try {
+        return VOUCHER_TYPE_WHITELIST.has(parseAccessKey(inv.accessKey).documentType);
+      } catch {
+        return false;
       }
+    });
+    allRecognizedBySupplier.set(supplierRuc, allRecognized);
+    needsReviewBySupplier.set(supplierRuc, requiresManualReview(allRecognized));
+  }
+
+  // Phase 2 -- ask the AI, outside any transaction. Only worth asking if
+  // levels 1-2 wouldn't already decide -- ADR-005's order is rule >
+  // catalog > AI, and a rule hit makes an AI call pure unused cost.
+  // ADR-007: the request carries only the supplier's own identity, never
+  // the taxpayer's RUC or name.
+  const aiResults = new Map<string, SupplierClassificationResult>();
+  if (aiClassifier) {
+    const toAsk = [...bySupplier.entries()].filter(
+      ([ruc]) => !needsReviewBySupplier.get(ruc) && !ruleBySupplier.has(ruc)
+    );
+    await mapWithConcurrency(toAsk, AI_CONCURRENCY, async ([supplierRuc, invoices]) => {
+      const representative = invoices[0];
+      try {
+        const aiResult = await aiClassifier.classifySupplier({
+          supplierRuc,
+          supplierName: representative.supplierName,
+          documentType: representative.documentType,
+        });
+        if (aiResult) aiResults.set(supplierRuc, aiResult);
+      } catch (err) {
+        // A provider/config failure must not abort the whole run: the
+        // supplier falls through to manual review and the failure is
+        // reported to the screen.
+        result.aiFailures += 1;
+        result.aiError ??= err instanceof Error ? err.message : String(err);
+      }
+    });
+  }
+
+  // Phase 3 -- decide and write, in one short transaction.
+  await withUser(userId, async (tx) => {
+    for (const [supplierRuc, invoices] of bySupplier) {
+      const allRecognized = allRecognizedBySupplier.get(supplierRuc)!;
+      const needsReview = needsReviewBySupplier.get(supplierRuc)!;
+      const existingRule = ruleBySupplier.get(supplierRuc);
+      const aiResult = aiResults.get(supplierRuc) ?? null;
+      const representative = invoices[0];
 
       const decision = needsReview
         ? null
@@ -159,34 +205,34 @@ export async function classifyPeriod(
               : 'DETERMINISTIC'
         : undefined;
 
-      for (const invoice of invoices) {
-        // A re-run that can't decide must not wipe an existing result.
-        if (!decision && invoice.processingStatus === 'PROCESSED') continue;
-        await tx.invoiceReceived.update({
-          where: { id: invoice.id },
-          data: {
-            ivaCategory: newCategory,
-            processingStatus: newStatus,
-            classificationSource: source,
-          },
-        });
-        await tx.classificationEvent.create({
-          data: {
-            receivedInvoiceId: invoice.id,
-            taxpayerId,
-            taxPeriodId: periodId,
-            field: 'ivaCategory',
-            oldValue: invoice.ivaCategory,
-            newValue: newCategory,
-            actorType: 'ENGINE',
-            reason: decision?.reason ?? 'No match at any level of the cascade',
-            // CLAUDE.md -> "AI models": every AI-sourced response logs
-            // which model and prompt version produced it.
-            modelId: source === 'AI' ? aiResult?.modelId : undefined,
-            promptVersion: source === 'AI' ? aiResult?.promptVersion : undefined,
-          },
-        });
-      }
+      // A re-run that can't decide must not wipe an existing result.
+      const targets = decision ? invoices : invoices.filter((i) => i.processingStatus !== 'PROCESSED');
+      if (targets.length === 0) continue;
+
+      await tx.invoiceReceived.updateMany({
+        where: { id: { in: targets.map((i) => i.id) } },
+        data: {
+          ivaCategory: newCategory,
+          processingStatus: newStatus,
+          classificationSource: source ?? null,
+        },
+      });
+      await tx.classificationEvent.createMany({
+        data: targets.map((invoice) => ({
+          receivedInvoiceId: invoice.id,
+          taxpayerId,
+          taxPeriodId: periodId,
+          field: 'ivaCategory',
+          oldValue: invoice.ivaCategory,
+          newValue: newCategory,
+          actorType: 'ENGINE' as const,
+          reason: decision?.reason ?? 'No match at any level of the cascade',
+          // CLAUDE.md -> "AI models": every AI-sourced response logs which
+          // model and prompt version produced it.
+          modelId: source === 'AI' ? aiResult?.modelId : undefined,
+          promptVersion: source === 'AI' ? aiResult?.promptVersion : undefined,
+        })),
+      });
     }
   });
 

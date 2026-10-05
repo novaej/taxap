@@ -42,8 +42,8 @@ opening to real users.
 - [ ] **Batch API for the AI classification pass** (`src/services/ai/`,
       since 2026-10-04; CLAUDE.md's model table calls for it —
       "Batch API para el pase masivo"). `classifyPeriod()` currently
-      calls the AI classifier per supplier, synchronously, inside its
-      loop. Correct, but not the 50%-cheaper/async path CLAUDE.md
+      calls the AI classifier per supplier, 5 at a time, within the
+      request (outside the DB transaction). Correct, but not the 50%-cheaper/async path CLAUDE.md
       describes — worth it once a period's supplier count makes the
       synchronous pass noticeably slow.
 - [ ] **Shared catalog, cascade level 2** (ADR-007). `classifyPeriod()`

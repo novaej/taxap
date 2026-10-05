@@ -73,6 +73,11 @@ Imperative mood: "Add", not "Added".
   to `NEXT_STEPS.md`.
 
 ### Fixed
+- Classifying with AI crashed with "A query cannot be executed on an
+  expired transaction" (5 s limit): the AI calls ran inside the DB
+  transaction, one supplier at a time. `classifyPeriod` now reads, asks
+  the AI (5 concurrent, outside any transaction) and writes in one short
+  transaction using `updateMany`/`createMany`
 - Classification with AI failed for a key not scoped to a workspace
   (400, "must include the anthropic-workspace-id header"), and the whole
   run aborted silently. `ANTHROPIC_WORKSPACE_ID` is now an optional env
