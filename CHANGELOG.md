@@ -690,3 +690,17 @@ identical content without creating a duplicate path, then deleted it
 through the same path `removeSourceFile()` uses and confirmed both the
 DB row and the file disappeared together; deleting an already-missing
 file does not throw.
+
+## [2026-10-04] Claude models now overridable via env; trimmed `.env.local.example`
+
+### Changed
+- `CLAUDE_BULK_MODEL`/`CLAUDE_ESCALATION_MODEL` added to
+  `ClaudeClassifier` (`src/services/ai/providers/claude-classifier.ts`),
+  defaulting to `claude-haiku-4-5`/`claude-opus-5` -- CLAUDE.md's
+  documented choice stays the default, but a model swap no longer needs
+  a code change, matching how `OpenAiClassifier` already worked.
+  Verified the override and the default both resolve correctly.
+- `.env.local.example` trimmed: every multi-line explanatory comment cut
+  to one line, and the storage paragraph removed outright since it
+  described `src/services/storage/`'s behavior without introducing any
+  variable -- that doesn't belong in an env example file at all.

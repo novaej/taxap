@@ -254,11 +254,12 @@ cost. `getAiClassifier()` (`src/services/ai/index.ts`) reads
 as before, now reached through a real switch instead of a permanent
 stub. `ClaudeClassifier` and `OpenAiClassifier`
 (`src/services/ai/providers/`) implement the same `AiClassifier`
-interface: ask the bulk model first (`claude-haiku-4-5`, per CLAUDE.md's
-model table; `OPENAI_BULK_MODEL`, default `gpt-4o-mini`, for the other
-provider), and only escalate to the stronger model
-(`claude-opus-5`/`OPENAI_ESCALATION_MODEL`) when the bulk answer's
-confidence is below 0.80 — the same bar
+interface: ask the bulk model first (`CLAUDE_BULK_MODEL`, default
+`claude-haiku-4-5` per CLAUDE.md's model table; `OPENAI_BULK_MODEL`,
+default `gpt-4o-mini`, for the other provider), and only escalate to the
+stronger model (`CLAUDE_ESCALATION_MODEL`/`OPENAI_ESCALATION_MODEL`,
+defaults `claude-opus-5`/`gpt-4o`) when the bulk answer's confidence is
+below 0.80 — the same bar
 `classification-cascade.ts`'s `level3_aiSuggestion()` requires to accept
 it. Both use structured output (Zod schema via each SDK's own helper),
 never prose parsing. The request sent to either provider carries only

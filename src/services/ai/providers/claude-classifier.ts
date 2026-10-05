@@ -7,11 +7,12 @@ import { buildClassificationPrompt, PROMPT_VERSION } from '../types';
 /**
  * CLAUDE.md -> "AI models": haiku for the bulk pass, opus only to
  * escalate a case the bulk model itself flagged as low-confidence.
- * Model IDs are the project's explicit, documented choice -- not the
- * generic "always use the newest model" default.
+ * Defaults are the project's documented choice; overridable via env like
+ * the OpenAI side, so a model swap (e.g. a new Haiku generation) doesn't
+ * need a code change -- update CLAUDE.md's table if the default changes.
  */
-const BULK_MODEL = 'claude-haiku-4-5';
-const ESCALATION_MODEL = 'claude-opus-5';
+const BULK_MODEL = process.env.CLAUDE_BULK_MODEL || 'claude-haiku-4-5';
+const ESCALATION_MODEL = process.env.CLAUDE_ESCALATION_MODEL || 'claude-opus-5';
 
 // Matches the cascade's own acceptance bar (classification-cascade.ts
 // level3_aiSuggestion requires >= 0.80) -- no point accepting a bulk
