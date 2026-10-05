@@ -1,18 +1,5 @@
-'use client';
-
-import { useState, useTransition } from 'react';
-import { useTranslations } from 'next-intl';
-import { useParams } from 'next/navigation';
-import { Link } from '@/i18n/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { getTranslations } from 'next-intl/server';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -21,138 +8,138 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { uploadSourceFiles, type UploadResult } from './actions';
+import { getPeriodIngestion } from './actions';
+import { IngestaClient } from './ingesta-client';
 
-export default function IngestaPage() {
-  const t = useTranslations('Ingesta');
-  const params = useParams<{ taxpayerId: string; periodId: string }>();
-  const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<UploadResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+const fmtDate = (d: Date) => d.toLocaleDateString('es-EC', { timeZone: 'UTC' });
+const fmtDateTime = (d: Date) => d.toLocaleString('es-EC');
 
-  function handleUpload() {
-    if (!file) return;
-    setError(null);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    startTransition(async () => {
-      const res = await uploadSourceFiles(params.taxpayerId, params.periodId, formData);
-      if (!res.success) {
-        setError(res.error ?? 'Error desconocido');
-        return;
-      }
-      setResult(res);
-    });
-  }
+export default async function IngestaPage({
+  params,
+}: {
+  params: Promise<{ taxpayerId: string; periodId: string }>;
+}) {
+  const { taxpayerId, periodId } = await params;
+  const t = await getTranslations('Ingesta');
+  const { files, received, issued } = await getPeriodIngestion(taxpayerId, periodId);
 
   return (
     <div>
       <h2 className="mb-6 text-xl font-semibold">{t('title')}</h2>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>{t('uploadHeading')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input
-            type="file"
-            accept=".txt"
-            disabled={isPending}
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-          {file && (
-            <p className="text-sm text-muted-foreground">
-              {t('selectedFile')}: {file.name} · {t('fileSize')}: {(file.size / 1024).toFixed(2)} KB
-            </p>
-          )}
-          <Button onClick={handleUpload} disabled={!file || isPending}>
-            {isPending ? t('uploading') : t('uploadButton')}
-          </Button>
-        </CardContent>
-      </Card>
+      <IngestaClient />
 
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTriangle className="size-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      <h3 className="mb-3 mt-10 text-lg font-semibold">{t('loadedHeading')}</h3>
 
-      {result?.success && (
-        <>
-          <Card className="mb-6">
+      {files.length === 0 ? (
+        <p className="text-muted-foreground">{t('loadedEmpty')}</p>
+      ) : (
+        <div className="space-y-6">
+          <Card>
             <CardHeader>
-              <CardTitle>{t('resultHeading')}</CardTitle>
-              <CardDescription>
-                {t('fileType')}: {result.fileType}
-              </CardDescription>
+              <CardTitle className="text-base">{t('filesHeading')}</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold">{result.totalRows}</div>
-                <div className="text-sm text-muted-foreground">{t('totalRows')}</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-600">{result.validCount}</div>
-                <div className="text-sm text-muted-foreground">{t('valid')}</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-destructive">{result.errorCount}</div>
-                <div className="text-sm text-muted-foreground">{t('errors')}</div>
-              </div>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('fileName')}</TableHead>
+                    <TableHead>{t('fileType')}</TableHead>
+                    <TableHead>{t('uploadedAt')}</TableHead>
+                    <TableHead className="text-right">{t('totalRows')}</TableHead>
+                    <TableHead className="text-right">{t('imported')}</TableHead>
+                    <TableHead className="text-right">{t('errors')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {files.map((f) => (
+                    <TableRow key={f.id}>
+                      <TableCell>{f.filename}</TableCell>
+                      <TableCell>
+                        {f.kind === 'PURCHASES_TXT' ? t('kindPurchases') : t('kindSales')}
+                      </TableCell>
+                      <TableCell>{fmtDateTime(f.uploadedAt)}</TableCell>
+                      <TableCell className="text-right">{f.rowCount}</TableCell>
+                      <TableCell className="text-right">{f.rowsImported}</TableCell>
+                      <TableCell className="text-right">{f.rowsRejected}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
 
-          {(result.errorCount ?? 0) > 0 && (
-            <Card className="mb-6">
+          {received.length > 0 && (
+            <Card>
               <CardHeader>
-                <CardTitle>{t('errorsHeading')}</CardTitle>
+                <CardTitle className="text-base">{t('receivedHeading')}</CardTitle>
+                <CardDescription>{t('vouchersCount', { count: received.length })}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{t('row')}</TableHead>
-                      <TableHead>{t('field')}</TableHead>
-                      <TableHead>{t('errorColumn')}</TableHead>
+                      <TableHead>{t('date')}</TableHead>
+                      <TableHead>{t('supplier')}</TableHead>
+                      <TableHead>{t('series')}</TableHead>
+                      <TableHead className="text-right">{t('subtotal')}</TableHead>
+                      <TableHead className="text-right">{t('vat')}</TableHead>
+                      <TableHead className="text-right">{t('total')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {result.results
-                      ?.map((r, i) => ({ ...r, index: i }))
-                      .filter((r) => !r.isValid)
-                      .flatMap((r) =>
-                        r.errors.map((err, j) => (
-                          <TableRow key={`${r.index}-${j}`}>
-                            <TableCell>{r.index + 2}</TableCell>
-                            <TableCell>{err.field}</TableCell>
-                            <TableCell>{err.message}</TableCell>
-                          </TableRow>
-                        ))
-                      )}
+                    {received.map((i) => (
+                      <TableRow key={i.id}>
+                        <TableCell>{fmtDate(i.issueDate)}</TableCell>
+                        <TableCell>
+                          {i.supplierName}
+                          <div className="text-xs text-muted-foreground">{i.supplierRuc}</div>
+                        </TableCell>
+                        <TableCell>{i.series}</TableCell>
+                        <TableCell className="text-right">{i.subtotal.toString()}</TableCell>
+                        <TableCell className="text-right">{i.vatAmount.toString()}</TableCell>
+                        <TableCell className="text-right">{i.total.toString()}</TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
           )}
 
-          {(result.validCount ?? 0) > 0 && (
-            <Alert className="border-green-600">
-              <CheckCircle2 className="size-4 text-green-600" />
-              <AlertDescription className="flex items-center justify-between">
-                <span>{t('readyMessage', { count: result.validCount ?? 0 })}</span>
-                <Link href={`/${params.taxpayerId}/periodos/${params.periodId}/ventas`}>
-                  <Button variant="link">{t('continueToClassification')}</Button>
-                </Link>
-              </AlertDescription>
-            </Alert>
+          {issued.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{t('issuedHeading')}</CardTitle>
+                <CardDescription>{t('vouchersCount', { count: issued.length })}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('date')}</TableHead>
+                      <TableHead>{t('series')}</TableHead>
+                      <TableHead className="text-right">{t('subtotal')}</TableHead>
+                      <TableHead className="text-right">{t('vat')}</TableHead>
+                      <TableHead className="text-right">{t('total')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {issued.map((i) => (
+                      <TableRow key={i.id}>
+                        <TableCell>{fmtDate(i.issueDate)}</TableCell>
+                        <TableCell>{i.series}</TableCell>
+                        <TableCell className="text-right">{i.subtotal.toString()}</TableCell>
+                        <TableCell className="text-right">{i.vatAmount.toString()}</TableCell>
+                        <TableCell className="text-right">{i.total.toString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           )}
-        </>
+        </div>
       )}
     </div>
   );

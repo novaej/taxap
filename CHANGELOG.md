@@ -24,6 +24,11 @@ Imperative mood: "Add", not "Added".
   `period_results` in the data model
 
 ### Changed
+- Ingestion: the screen now lists what the period already has (uploaded
+  files with imported/rejected counts, and the received/issued vouchers).
+  Rows already imported by an earlier upload are reported as "ya
+  cargadas", not as errors, and an upload with nothing new no longer
+  creates a `source_files` row or a stored copy
 - Admin: active tab highlighted; form versions listed as a table (code,
   label, valid from, field count, status); edit dialogs for draft form
   versions, their fields, and tax rates (published versions stay

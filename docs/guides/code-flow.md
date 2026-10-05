@@ -172,13 +172,22 @@ Per file:
    (`detectFileType` — 12 columns with `RUC_EMISOR` = received, 8 with
    `COMPROBANTE` = issued). See
    [`../tax/formato-archivos-sri.md`](../tax/formato-archivos-sri.md).
-2. Save the raw content to disk (`saveSourceFile()`,
-   `src/services/storage/`, since 2026-10-04) at
-   `storage/<taxpayerId>/<sha256>.txt` — outside the DB transaction,
-   keyed by hash so a retry after a failed upload overwrites the same
-   path instead of piling up orphans. `removeSourceFile()` deletes both
-   the `source_files` row and this file together.
-3. Register it in `source_files`.
+2. Validate every row (below). A row whose only problem is `DUPLICATE`
+   (already imported by an earlier upload) is *skipped*, not an error. If
+   nothing new would be imported, stop here: no `source_files` row, no
+   stored copy.
+3. Otherwise save the raw content to disk (`saveSourceFile()`,
+   `src/services/storage/`) at `storage/<taxpayerId>/<sha256>.txt`,
+   inside the DB transaction and before the `source_files` insert, so a
+   failed write leaves no row pointing at a missing file; keyed by hash
+   so a retry overwrites instead of piling up orphans. `removeSourceFile()`
+   deletes both the `source_files` row and this file (the vouchers stay:
+   their `source_file_id` is set to null).
+4. Register it in `source_files`.
+
+The page (`ingesta/page.tsx`, server) also lists what the period already
+holds via `getPeriodIngestion()`: upload history plus the received and
+issued vouchers; `ingesta-client.tsx` is the upload form and result.
 
 Per row (`ingestionService.validateReceivedRow`/`validateIssuedRow`):
 1. Decompose the `CLAVE_ACCESO` and cross-check it against date, type,

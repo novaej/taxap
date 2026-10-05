@@ -16,6 +16,7 @@ export interface UploadResult {
   totalRows?: number;
   validCount?: number;
   errorCount?: number;
+  duplicateCount?: number;
   results?: Array<{ isValid: boolean; errors: Array<{ field: string; message: string; code: string }> }>;
 }
 
@@ -45,11 +46,6 @@ export async function uploadSourceFiles(
       error: 'No se pudo interpretar el formato del archivo',
     };
   }
-
-  // Outside the DB transaction below: disk I/O shouldn't hold a Postgres
-  // lock, and keying by sha256 means a retry after a failed transaction
-  // overwrites the same path instead of leaving an orphan behind.
-  await saveSourceFile(taxpayerId, sha256, content);
 
   return withUser(userId, async (tx) => {
     const taxPeriod = await tx.taxPeriod.findFirstOrThrow({
@@ -84,6 +80,33 @@ export async function uploadSourceFiles(
             )
     );
 
+    // A row whose only problem is DUPLICATE was imported by an earlier
+    // upload: it's skipped, not a validation error.
+    const isDuplicateOnly = (r: (typeof validationResults)[number]) =>
+      !r.isValid && r.errors.every((e) => e.code === 'DUPLICATE');
+    const importedCount = validationResults.filter((r) => r.isValid).length;
+    const duplicateCount = validationResults.filter(isDuplicateOnly).length;
+    const errorCount = validationResults.length - importedCount - duplicateCount;
+
+    // Nothing new to record (e.g. the same file uploaded twice): no
+    // source_files row and no stored copy -- they'd only add noise.
+    if (importedCount === 0) {
+      return {
+        success: true,
+        fileType: parseResult.fileType,
+        totalRows: parseResult.rows.length,
+        validCount: 0,
+        errorCount,
+        duplicateCount,
+        results: validationResults,
+      };
+    }
+
+    // Inside the transaction so a failed write leaves no row pointing at a
+    // missing file; keyed by sha256, so a retry overwrites instead of
+    // leaving an orphan.
+    await saveSourceFile(taxpayerId, sha256, content);
+
     const sourceFile = await tx.sourceFile.create({
       data: {
         taxpayerId,
@@ -92,8 +115,8 @@ export async function uploadSourceFiles(
         filename: file.name,
         sha256,
         rowCount: parseResult.rows.length,
-        rowsImported: validationResults.filter((r) => r.isValid).length,
-        rowsRejected: validationResults.filter((r) => !r.isValid).length,
+        rowsImported: importedCount,
+        rowsRejected: errorCount,
         uploadedBy: userId,
       },
     });
@@ -150,10 +173,33 @@ export async function uploadSourceFiles(
       sourceFileId: sourceFile.id,
       fileType: parseResult.fileType,
       totalRows: parseResult.rows.length,
-      validCount: validationResults.filter((r) => r.isValid).length,
-      errorCount: validationResults.filter((r) => !r.isValid).length,
+      validCount: importedCount,
+      errorCount,
+      duplicateCount,
       results: validationResults,
     };
+  });
+}
+
+/** What this period already has loaded: the upload history and the vouchers. */
+export async function getPeriodIngestion(taxpayerId: string, periodId: string) {
+  const userId = await getCurrentUserId();
+  return withUser(userId, async (tx) => {
+    const [files, received, issued] = await Promise.all([
+      tx.sourceFile.findMany({
+        where: { taxpayerId, taxPeriodId: periodId },
+        orderBy: { uploadedAt: 'desc' },
+      }),
+      tx.invoiceReceived.findMany({
+        where: { taxpayerId, taxPeriodId: periodId },
+        orderBy: { issueDate: 'asc' },
+      }),
+      tx.invoiceIssued.findMany({
+        where: { taxpayerId, taxPeriodId: periodId },
+        orderBy: { issueDate: 'asc' },
+      }),
+    ]);
+    return { files, received, issued };
   });
 }
 
