@@ -251,7 +251,8 @@ Only vouchers with `IVA > 0` enter here
 
 **`classifyPeriod()`** — step 2 of ingestion
 ([ADR-011](../adr/011-ingesta-y-clasificacion-en-dos-pasos.md)): groups
-`UNCLASSIFIED` vouchers by supplier and runs the
+open vouchers (`UNCLASSIFIED` or left in `REQUIRES_MANUAL_REVIEW` by an
+earlier run) by supplier and runs the
 `classificationCascade.classify()` cascade
 ([ADR-005](../adr/005-clasificacion-en-cascada.md)):
 
@@ -264,6 +265,18 @@ Only vouchers with `IVA > 0` enter here
 │             ↓ no match
 └─ Level 4 ── manual review queue (processing_status = REQUIRES_MANUAL_REVIEW)
 ```
+
+**Classifying again.** `classifyPeriod(taxpayerId, periodId, options)`
+takes `{ reclassify: true }` ("Reclasificar todo": every voucher whose
+source isn't `USER`) or `{ invoiceIds }` ("Reclasificar automáticamente"
+on the selected rows, whatever their state). Manual decisions are never
+touched by `reclassify`, a supplier rule the user created still wins over
+the AI, and a re-run that can't decide leaves an already-`PROCESSED`
+voucher as it was. Every change logs an event with the old and new value.
+
+The "Sin IVA (informativo)" tab lists vouchers with `IVA = 0`: read-only,
+no selection, they never enter the cascade.
+
 
 A voucher type outside the allowlist within the group sends the whole
 supplier to manual review without going through the cascade

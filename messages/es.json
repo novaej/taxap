@@ -233,7 +233,13 @@
     "tabUnclassified": "Sin clasificar",
     "classification": "Clasificación",
     "unclassifiedHint": "Hay {count} comprobantes con IVA sin clasificar. Clasifícalos para continuar.",
-    "noVatNote": "{count} comprobantes sin IVA no se clasifican.",
+    "tabNoVat": "Sin IVA (informativo)",
+    "noVatInfo": "Comprobantes con IVA 0: no se clasifican ni entran al cálculo de crédito. Se muestran solo como referencia.",
+    "date": "Fecha",
+    "series": "Serie",
+    "reclassifyAll": "Reclasificar todo",
+    "reclassifyAllConfirm": "Se volverá a ejecutar la clasificación automática sobre todos los comprobantes. Las decisiones que tomaste a mano se conservan. ¿Continuar?",
+    "reclassifySelected": "Reclasificar automáticamente",
     "continueToPreDeclaration": "Continuar a pre-declaración →"
   },
   "Auth": {

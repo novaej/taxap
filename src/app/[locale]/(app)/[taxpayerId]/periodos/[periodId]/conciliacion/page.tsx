@@ -24,6 +24,8 @@ export default async function ConciliacionPage({
           ivaCategory: p.ivaCategory,
           processingStatus: p.processingStatus,
           hasVat: p.vatAmount.gt(0),
+          issueDate: p.issueDate.toISOString(),
+          series: p.series,
         }))}
         taxpayerId={taxpayerId}
         periodId={periodId}

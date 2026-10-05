@@ -6,6 +6,11 @@ Imperative mood: "Add", not "Added".
 ## [Unreleased]
 
 ### Added
+- Reconciliation: classify again — "Reclasificar todo" (engine results
+  only, manual decisions kept) and "Reclasificar automáticamente" on the
+  selected vouchers
+- Reconciliation: "Sin IVA (informativo)" tab listing the `IVA = 0`
+  vouchers as read-only reference
 - Ingestion: delete an upload (trash icon) with the vouchers it imported;
   blocked on filed periods, logged as a `source_file` event
 - `docs/site/screens/`: specifications for ingestion, issued sales,

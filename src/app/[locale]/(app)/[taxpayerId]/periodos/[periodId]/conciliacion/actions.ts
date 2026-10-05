@@ -26,20 +26,40 @@ export async function getPurchasesByStatus(taxpayerId: string, periodId: string)
  * four-level cascade (ADR-005). Resumable -- only touches what's still
  * unclassified.
  */
-export async function classifyPeriod(taxpayerId: string, periodId: string) {
+export interface ClassifyOptions {
+  /** Re-run exactly these vouchers, whatever their current state. */
+  invoiceIds?: string[];
+  /** Re-run every voucher not decided by the user (engine results only). */
+  reclassify?: boolean;
+}
+
+export async function classifyPeriod(
+  taxpayerId: string,
+  periodId: string,
+  options: ClassifyOptions = {}
+) {
   const userId = await getCurrentUserId();
   const aiClassifier = getAiClassifier(); // null in no-AI mode (ADR-007)
 
   await withUser(userId, async (tx) => {
+    // Default: only what is still open. REQUIRES_MANUAL_REVIEW is what an
+    // earlier engine run left unresolved (a manual decision makes it
+    // PROCESSED), so re-running may now resolve it -- e.g. once an AI key
+    // is configured. `reclassify` also re-runs engine-classified vouchers
+    // but never the user's own decisions; `invoiceIds` is an explicit
+    // request and overrides both.
+    const statusFilter = options.invoiceIds
+      ? { id: { in: options.invoiceIds } }
+      : options.reclassify
+        ? { OR: [{ classificationSource: null }, { classificationSource: { not: 'USER' as const } }] }
+        : { processingStatus: { in: ['UNCLASSIFIED', 'REQUIRES_MANUAL_REVIEW'] as ProcessingStatus[] } };
+
     const pending = await tx.invoiceReceived.findMany({
       where: {
         taxpayerId,
         taxPeriodId: periodId,
-        // REQUIRES_MANUAL_REVIEW is what an earlier engine run left
-        // unresolved (a manual decision makes it PROCESSED), so re-running
-        // may now resolve it -- e.g. once an AI key is configured.
-        processingStatus: { in: ['UNCLASSIFIED', 'REQUIRES_MANUAL_REVIEW'] },
         vatAmount: { gt: 0 },
+        ...statusFilter,
       },
     });
 
@@ -125,6 +145,8 @@ export async function classifyPeriod(taxpayerId: string, periodId: string) {
         : undefined;
 
       for (const invoice of invoices) {
+        // A re-run that can't decide must not wipe an existing result.
+        if (!decision && invoice.processingStatus === 'PROCESSED') continue;
         await tx.invoiceReceived.update({
           where: { id: invoice.id },
           data: {

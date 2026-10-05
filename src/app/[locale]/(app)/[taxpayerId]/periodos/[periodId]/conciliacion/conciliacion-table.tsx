@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Sparkles } from 'lucide-react';
+import { RefreshCw, Sparkles } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -34,9 +34,11 @@ interface PurchaseRow {
   ivaCategory: IvaCategory;
   processingStatus: ProcessingStatus;
   hasVat: boolean;
+  issueDate: string;
+  series: string;
 }
 
-type Tab = 'UNCLASSIFIED' | 'CREDIT' | 'COST_EXPENSE' | 'PENDING';
+type Tab = 'UNCLASSIFIED' | 'CREDIT' | 'COST_EXPENSE' | 'PENDING' | 'NO_VAT';
 
 export function ConciliacionTable({
   purchases,
@@ -78,11 +80,12 @@ export function ConciliacionTable({
   );
 
   const visible = useMemo(() => {
+    if (tab === 'NO_VAT') return noVat;
     if (tab === 'UNCLASSIFIED') return unclassified;
     if (tab === 'CREDIT') return withCredit;
     if (tab === 'COST_EXPENSE') return costExpense;
     return pending;
-  }, [tab, unclassified, withCredit, costExpense, pending]);
+  }, [tab, noVat, unclassified, withCredit, costExpense, pending]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -94,6 +97,19 @@ export function ConciliacionTable({
 
   function runCascade() {
     startTransition(() => classifyPeriod(taxpayerId, periodId));
+  }
+
+  function reclassifySelected() {
+    if (selected.size === 0) return;
+    startTransition(async () => {
+      await classifyPeriod(taxpayerId, periodId, { invoiceIds: Array.from(selected) });
+      setSelected(new Set());
+    });
+  }
+
+  function reclassifyAll() {
+    if (!window.confirm(t('reclassifyAllConfirm'))) return;
+    startTransition(() => classifyPeriod(taxpayerId, periodId, { reclassify: true }));
   }
 
   function applyBulk() {
@@ -124,6 +140,15 @@ export function ConciliacionTable({
         </Alert>
       )}
 
+      {withCredit.length + costExpense.length > 0 && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={reclassifyAll} disabled={isPending}>
+            <RefreshCw className="size-4" />
+            {t('reclassifyAll')}
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button variant={tab === 'UNCLASSIFIED' ? 'default' : 'outline'} size="sm" onClick={() => setTab('UNCLASSIFIED')}>
           {t('tabUnclassified')} ({unclassified.length})
@@ -138,8 +163,47 @@ export function ConciliacionTable({
           {t('tabPending')} ({pending.length})
           {pending.length > 0 && <Badge variant="destructive" className="ml-1">•</Badge>}
         </Button>
+        <Button variant={tab === 'NO_VAT' ? 'default' : 'outline'} size="sm" onClick={() => setTab('NO_VAT')}>
+          {t('tabNoVat')} ({noVat.length})
+        </Button>
       </div>
 
+      {tab === 'NO_VAT' ? (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">{t('noVatInfo')}</p>
+          {noVat.length === 0 ? (
+            <p className="text-muted-foreground">{t('emptyState')}</p>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('date')}</TableHead>
+                    <TableHead>{t('supplier')}</TableHead>
+                    <TableHead>{t('ruc')}</TableHead>
+                    <TableHead>{t('series')}</TableHead>
+                    <TableHead className="text-right">{t('total')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {noVat.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>
+                        {new Date(p.issueDate).toLocaleDateString('es-EC', { timeZone: 'UTC' })}
+                      </TableCell>
+                      <TableCell>{p.supplierName}</TableCell>
+                      <TableCell>{p.supplierRuc}</TableCell>
+                      <TableCell>{p.series}</TableCell>
+                      <TableCell className="text-right">{p.total}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
       {tab === 'PENDING' && pending.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
           <span>{t('pendingHint')}</span>
@@ -177,6 +241,15 @@ export function ConciliacionTable({
             </Select>
             <Button size="sm" onClick={applyBulk} disabled={isPending || selected.size === 0}>
               {common('confirm')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={reclassifySelected}
+              disabled={isPending || selected.size === 0}
+            >
+              <RefreshCw className="size-4" />
+              {t('reclassifySelected')}
             </Button>
           </div>
 
@@ -217,8 +290,7 @@ export function ConciliacionTable({
         </div>
       )}
 
-      {noVat.length > 0 && (
-        <p className="text-sm text-muted-foreground">{t('noVatNote', { count: noVat.length })}</p>
+        </>
       )}
 
       <Link href={`/${taxpayerId}/periodos/${periodId}/predeclaracion`}>
