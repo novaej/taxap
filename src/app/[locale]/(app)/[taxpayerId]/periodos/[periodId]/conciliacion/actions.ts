@@ -230,10 +230,14 @@ export async function classifyPeriod(
           newValue: newCategory,
           actorType: 'ENGINE' as const,
           reason: decision?.reason ?? 'No match at any level of the cascade',
-          // CLAUDE.md -> "AI models": every AI-sourced response logs which
-          // model and prompt version produced it.
-          modelId: source === 'AI' ? aiResult?.modelId : undefined,
-          promptVersion: source === 'AI' ? aiResult?.promptVersion : undefined,
+          // CLAUDE.md -> "AI models": every AI response logs which model
+          // and prompt version produced it. Recorded whenever the model
+          // was consulted, including answers below the acceptance bar
+          // (they explain why the voucher went to manual review).
+          modelId: aiResult?.modelId,
+          promptVersion: aiResult?.promptVersion,
+          aiConfidence: aiResult?.confidence,
+          aiReasoning: aiResult?.reasoning,
         })),
       });
     }

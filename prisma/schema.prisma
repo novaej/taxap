@@ -375,6 +375,10 @@ model ClassificationEvent {
   rulesVersion  String?                   @map("rules_version")
   modelId       String?                   @map("model_id")
   promptVersion String?                   @map("prompt_version")
+  // What the model answered when it was consulted -- also kept when its
+  // answer was below the acceptance bar and the voucher went to review.
+  aiConfidence  Decimal?                  @map("ai_confidence") @db.Decimal(3, 2)
+  aiReasoning   String?                   @map("ai_reasoning")
   reason        String?
 
   createdAt DateTime @default(now()) @map("created_at")

@@ -6,6 +6,10 @@ Imperative mood: "Add", not "Added".
 ## [Unreleased]
 
 ### Added
+- `classification_events.ai_confidence` and `ai_reasoning` (migration
+  `add_event_ai_reasoning`): the model's confidence and explanation are
+  stored whenever it was consulted, including answers below the
+  acceptance bar
 - Reconciliation: "No deducible" tab and manual option for `NON_DEDUCTIBLE`
   (the AI can return it; before, those vouchers appeared nowhere)
 - Reconciliation: classify again — "Reclasificar todo" (engine results

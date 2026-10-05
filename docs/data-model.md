@@ -264,6 +264,8 @@ reinforced by the trigger).
 | `actor_user_id` | UUID | nullable |
 | `source` | ENUM | same as `classification_source`, nullable |
 | `rules_version`, `model_id`, `prompt_version` | TEXT | nullable |
+| `ai_confidence` | DECIMAL(3,2) | nullable; the model's confidence, set whenever it was consulted |
+| `ai_reasoning` | TEXT | nullable; the model's own explanation, same condition |
 | `reason` | TEXT | nullable |
 | `created_at` | TIMESTAMP | |
 
