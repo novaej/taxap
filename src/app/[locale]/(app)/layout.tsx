@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { auth } from '@/lib/auth';
 import { AppSidebar } from '@/components/app-sidebar';
+import { BackBar } from '@/components/back-bar';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const t = await getTranslations('Common');
@@ -17,7 +18,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         isAdmin={isAdmin}
         userEmail={session?.user?.email ?? ''}
       />
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1">
+        <BackBar label={t('back')} />
+        {children}
+      </main>
     </div>
   );
 }

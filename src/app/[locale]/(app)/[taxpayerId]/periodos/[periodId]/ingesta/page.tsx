@@ -24,11 +24,9 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { uploadSourceFiles, type UploadResult } from './actions';
-import { PeriodStepNav } from '../period-step-nav';
 
 export default function IngestaPage() {
   const t = useTranslations('Ingesta');
-  const nav = useTranslations('PeriodNav');
   const params = useParams<{ taxpayerId: string; periodId: string }>();
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -53,20 +51,8 @@ export default function IngestaPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <PeriodStepNav
-        taxpayerId={params.taxpayerId}
-        periodId={params.periodId}
-        current="ingesta"
-        labels={{
-          ingesta: nav('ingesta'),
-          ventas: nav('ventas'),
-          conciliacion: nav('conciliacion'),
-          predeclaracion: nav('predeclaracion'),
-        }}
-      />
-
-      <h1 className="mb-6 text-2xl font-bold">{t('title')}</h1>
+    <div>
+      <h2 className="mb-6 text-xl font-semibold">{t('title')}</h2>
 
       <Card className="mb-6">
         <CardHeader>

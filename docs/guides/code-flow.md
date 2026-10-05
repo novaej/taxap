@@ -46,6 +46,12 @@ Two nested layouts under `(app)`, plus a sidebar component:
   taxpayers" always, "Administration" only if
   `session.user.role === 'ADMIN'`. Highlights the active section by
   comparing `usePathname()`.
+- **`BackBar`** (`src/components/back-bar.tsx`, client) — mounted by
+  `(app)/layout.tsx`, so every screen gets the same "Back" link. The
+  target is the screen's *logical parent*, computed from the URL by
+  `parentPath()` (step → period overview → periods → taxpayers; admin
+  detail → admin list), not `history.back()`, so it also works after a
+  refresh or from a deep link. Hidden on `/taxpayers`.
 - **`[taxpayerId]/layout.tsx`** — wraps everything under a given taxpayer
   (`periodos`, `editar`). Secondary strip: business name + two icon
   buttons ("Periods" = `Calendar`, "Edit taxpayer" = `SquarePen`, each
@@ -285,20 +291,21 @@ bulk:
 
 ## 4. Pre-filing
 
-**Route:** `/[locale]/(app)/[taxpayerId]/periodos/[periodId]` (the period
-root)
+**Route:** `/[locale]/(app)/[taxpayerId]/periodos/[periodId]/predeclaracion`
+(step 4 of 4)
 **Server Actions:** `computePeriodResults()`, `lockPeriod()`,
 `reopenPeriod()` (the period's `actions.ts`)
 
-**This route doesn't always show results.** `page.tsx` counts
-`invoices_received` + `invoices_issued` for the period; at zero, it
-renders `PeriodOverview` (`period-overview.tsx`) instead of
-`PreDeclaracionClient` — four large cards, one per step of the flow, the
-first ("Ingestion") marked as the starting point. Before this, a
-newly created period landed directly on an empty-results view with the
-factor blocked, which read as broken rather than empty. As soon as the
-period has at least one voucher, it goes back to showing the regular
-results view.
+**The period root is the wizard overview, one level above the steps.**
+`[periodId]/page.tsx` always renders `PeriodOverview`: four cards, one
+per step (Ingestion, Issued sales, Reconciliation, Pre-filing), the
+first marked "start here" only while the period has no vouchers.
+`[periodId]/layout.tsx` wraps every screen under the period with the
+period's title and `PeriodStepNav` (client; derives the current step
+from the URL, hides itself on the overview, and has a grid icon that
+returns to it). Before this, the root *was* the pre-filing screen, so
+opening a period dropped the user on step 4 with the other steps hidden
+behind a tab bar.
 
 **`computePeriodResults()`** calls `calculatePeriodResults()`
 (`src/domain/iva/calculator.ts`) over the period's vouchers — pure
@@ -350,6 +357,12 @@ The admin belongs to the system: they upload/publish the form and load
 rates, but don't see taxpayer data or intervene in results — the
 disclaimer in `admin/layout.tsx` says so explicitly on screen.
 
+- **`deleteFormVersion()` / `deleteTaxRate()`** back the trash buttons on
+  the two admin lists (confirmation via `window.confirm`, like period
+  deletion). A form version is refused (`IN_USE`) while any
+  `tax_periods.form_version_id` points at it; deleting one removes its
+  fields and mappings by cascade. A rate is deleted by its
+  `(tax, valid_from)` key.
 - **`createFormVersionDraft()`** uploads a PDF, computes its `sha256`
   (`crypto`, same as `uploadSourceFiles()` in ingestion) and creates a
   `FormVersion` in `DRAFT`. **The PDF is never stored** — neither the

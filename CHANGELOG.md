@@ -24,6 +24,13 @@ Imperative mood: "Add", not "Added".
   `period_results` in the data model
 
 ### Changed
+- Period landing page (`/[taxpayerId]/periodos/[periodId]`) is now always
+  the wizard overview (four step cards); Pre-filing moved to
+  `.../predeclaracion` as step 4. A shared period layout renders the
+  title and the step bar (with an overview icon) for all steps
+- Global "Back" bar in the app layout, driven by each screen's logical
+  parent; replaces the per-page back links
+- Admin: delete form versions (refused while periods use them) and rates
 - **Form 104 is the destination for results, not a source of
   calculation.** The domain produces results with a stable key and
   doesn't know field numbers. The formulas printed on the form stay in

@@ -241,3 +241,39 @@ export async function createTaxRate(input: CreateTaxRateInput): Promise<CreateTa
     return { success: false, error: 'UNKNOWN' };
   }
 }
+
+export interface DeleteResult {
+  success: boolean;
+  error?: 'IN_USE' | 'UNKNOWN';
+}
+
+/**
+ * Deletes a form version together with its fields and mappings (cascade).
+ * Refused while any taxpayer period points at it -- those periods'
+ * pre-declaration was built against that exact catalog.
+ */
+export async function deleteFormVersion(formVersionId: string): Promise<DeleteResult> {
+  await requireAdmin();
+  try {
+    const inUse = await asAdmin((tx) => tx.taxPeriod.count({ where: { formVersionId } }));
+    if (inUse > 0) return { success: false, error: 'IN_USE' };
+    await asAdmin((tx) => tx.formVersion.delete({ where: { id: formVersionId } }));
+  } catch {
+    return { success: false, error: 'UNKNOWN' };
+  }
+  revalidatePath('/admin/formularios');
+  return { success: true };
+}
+
+export async function deleteTaxRate(tax: TaxRateType, validFrom: string): Promise<DeleteResult> {
+  await requireAdmin();
+  try {
+    await asAdmin((tx) =>
+      tx.taxRate.delete({ where: { tax_validFrom: { tax, validFrom: new Date(validFrom) } } })
+    );
+  } catch {
+    return { success: false, error: 'UNKNOWN' };
+  }
+  revalidatePath('/admin/tasas');
+  return { success: true };
+}

@@ -2,6 +2,7 @@
   "Common": {
     "appName": "taxap",
     "back": "Volver",
+    "deleteConfirm": "¿Eliminar? No se puede deshacer.",
     "loading": "Cargando…",
     "save": "Guardar",
     "cancel": "Cancelar",
@@ -122,10 +123,14 @@
     "verifiedAt": "Fecha de verificación",
     "verificationNotice": "No se puede cargar una tasa sin fuente y fecha de verificación (CLAUDE.md -> \"Valores normativos\").",
     "createRateButton": "Cargar tasa",
+    "deleteVersionConfirm": "¿Eliminar esta versión del formulario y todos sus casilleros? No se puede deshacer.",
+    "deleteRateConfirm": "¿Eliminar esta tasa? No se puede deshacer.",
+    "versionInUseError": "No se puede eliminar: hay períodos que usan esta versión.",
     "alreadyExistsError": "Ya existe una tasa de ese impuesto desde esa fecha.",
     "unknownError": "No se pudo completar la operación."
   },
   "PeriodNav": {
+    "overview": "Resumen del período",
     "ingesta": "Ingesta",
     "ventas": "Ventas emitidas",
     "conciliacion": "Conciliación",

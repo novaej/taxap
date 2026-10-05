@@ -1,7 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import { getPendingSales } from './actions';
 import { VentasTable } from './ventas-table';
-import { PeriodStepNav } from '../period-step-nav';
 
 export default async function VentasPage({
   params,
@@ -10,24 +9,11 @@ export default async function VentasPage({
 }) {
   const { taxpayerId, periodId } = await params;
   const t = await getTranslations('VentasEmitidas');
-  const nav = await getTranslations('PeriodNav');
   const sales = await getPendingSales(taxpayerId, periodId);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <PeriodStepNav
-        taxpayerId={taxpayerId}
-        periodId={periodId}
-        current="ventas"
-        labels={{
-          ingesta: nav('ingesta'),
-          ventas: nav('ventas'),
-          conciliacion: nav('conciliacion'),
-          predeclaracion: nav('predeclaracion'),
-        }}
-      />
-
-      <h1 className="mb-6 text-2xl font-bold">{t('title')}</h1>
+    <div>
+      <h2 className="mb-6 text-xl font-semibold">{t('title')}</h2>
 
       <VentasTable
         sales={sales.map((s) => ({

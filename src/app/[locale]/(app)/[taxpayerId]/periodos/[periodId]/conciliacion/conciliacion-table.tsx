@@ -158,7 +158,7 @@ export function ConciliacionTable({
         </div>
       )}
 
-      <Link href={`/${taxpayerId}/periodos/${periodId}`}>
+      <Link href={`/${taxpayerId}/periodos/${periodId}/predeclaracion`}>
         <Button variant="link">{t('continueToPreDeclaration')}</Button>
       </Link>
     </div>

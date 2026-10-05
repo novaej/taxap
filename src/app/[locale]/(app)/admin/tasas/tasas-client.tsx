@@ -22,7 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { createTaxRate } from '../actions';
+import { Trash2 } from 'lucide-react';
+import { createTaxRate, deleteTaxRate } from '../actions';
 
 interface RateRow {
   tax: string;
@@ -35,6 +36,7 @@ interface RateRow {
 
 export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
   const t = useTranslations('Admin');
+  const common = useTranslations('Common');
 
   const [rates, setRates] = useState(initialRates);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -45,6 +47,7 @@ export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
   const [verifiedAt, setVerifiedAt] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
 
   async function handleCreate() {
     setIsSubmitting(true);
@@ -73,8 +76,24 @@ export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
     setDialogOpen(false);
   }
 
+  async function handleDelete(r: RateRow) {
+    if (!window.confirm(t('deleteRateConfirm'))) return;
+    setListError(null);
+    const result = await deleteTaxRate(r.tax as 'IVA', r.validFrom);
+    if (!result.success) {
+      setListError(t('unknownError'));
+      return;
+    }
+    setRates((prev) => prev.filter((x) => !(x.tax === r.tax && x.validFrom === r.validFrom)));
+  }
+
   return (
     <div>
+      {listError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{listError}</AlertDescription>
+        </Alert>
+      )}
       <div className="mb-4 flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -143,6 +162,7 @@ export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
               <TableHead>{t('validTo')}</TableHead>
               <TableHead>{t('source')}</TableHead>
               <TableHead>{t('verifiedAt')}</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -157,6 +177,17 @@ export function TasasClient({ initialRates }: { initialRates: RateRow[] }) {
                 </TableCell>
                 <TableCell>{r.source}</TableCell>
                 <TableCell>{new Date(r.verifiedAt).toLocaleDateString('es-EC', { timeZone: 'UTC' })}</TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title={common('delete')}
+                    aria-label={common('delete')}
+                    onClick={() => handleDelete(r)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

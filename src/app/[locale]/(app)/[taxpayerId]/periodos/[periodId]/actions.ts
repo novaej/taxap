@@ -50,7 +50,7 @@ export async function computePeriodResults(taxpayerId: string, periodId: string)
     return computed;
   });
 
-  revalidatePath(`/${taxpayerId}/periodos/${periodId}`);
+  revalidatePath(`/${taxpayerId}/periodos/${periodId}`, 'layout');
   return Array.from(results.entries()).map(([key, r]) => ({
     key,
     value: r.value.toString(),
@@ -91,7 +91,7 @@ export async function lockPeriod(taxpayerId: string, periodId: string) {
       },
     });
   });
-  revalidatePath(`/${taxpayerId}/periodos/${periodId}`);
+  revalidatePath(`/${taxpayerId}/periodos/${periodId}`, 'layout');
 }
 
 /**
@@ -119,5 +119,5 @@ export async function reopenPeriod(taxpayerId: string, periodId: string) {
       },
     });
   });
-  revalidatePath(`/${taxpayerId}/periodos/${periodId}`);
+  revalidatePath(`/${taxpayerId}/periodos/${periodId}`, 'layout');
 }

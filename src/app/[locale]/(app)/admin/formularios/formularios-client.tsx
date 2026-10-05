@@ -17,7 +17,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { createFormVersionDraft } from '../actions';
+import { Trash2 } from 'lucide-react';
+import { createFormVersionDraft, deleteFormVersion } from '../actions';
 
 interface VersionRow {
   id: string;
@@ -29,6 +30,7 @@ interface VersionRow {
 
 export function FormulariosClient({ initialVersions }: { initialVersions: VersionRow[] }) {
   const t = useTranslations('Admin');
+  const common = useTranslations('Common');
   const router = useRouter();
 
   const [versions, setVersions] = useState(initialVersions);
@@ -39,6 +41,7 @@ export function FormulariosClient({ initialVersions }: { initialVersions: Versio
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
 
   async function handleCreate() {
     if (!file) return;
@@ -58,6 +61,17 @@ export function FormulariosClient({ initialVersions }: { initialVersions: Versio
 
     setDialogOpen(false);
     router.push(`/admin/formularios/${result.formVersionId}`);
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm(t('deleteVersionConfirm'))) return;
+    setListError(null);
+    const result = await deleteFormVersion(id);
+    if (!result.success) {
+      setListError(result.error === 'IN_USE' ? t('versionInUseError') : t('unknownError'));
+      return;
+    }
+    setVersions((prev) => prev.filter((v) => v.id !== id));
   }
 
   return (
@@ -114,19 +128,35 @@ export function FormulariosClient({ initialVersions }: { initialVersions: Versio
         <p className="text-muted-foreground">{t('formulariosEmpty')}</p>
       ) : (
         <div className="space-y-3">
+          {listError && (
+            <Alert variant="destructive">
+              <AlertDescription>{listError}</AlertDescription>
+            </Alert>
+          )}
           {versions.map((v) => (
-            <Link key={v.id} href={`/admin/formularios/${v.id}`}>
-              <Card className="transition-colors hover:bg-accent">
-                <CardHeader className="flex-row items-center justify-between">
-                  <CardTitle className="text-base">
-                    {v.formCode} — {v.label}
-                  </CardTitle>
-                  <Badge variant={v.status === 'PUBLISHED' ? 'default' : 'outline'}>
-                    {v.status === 'PUBLISHED' ? t('statusPublished') : t('statusDraft')}
-                  </Badge>
-                </CardHeader>
-              </Card>
-            </Link>
+            <div key={v.id} className="flex items-center gap-2">
+              <Link href={`/admin/formularios/${v.id}`} className="min-w-0 flex-1">
+                <Card className="transition-colors hover:bg-accent">
+                  <CardHeader className="flex-row items-center justify-between">
+                    <CardTitle className="text-base">
+                      {v.formCode} — {v.label}
+                    </CardTitle>
+                    <Badge variant={v.status === 'PUBLISHED' ? 'default' : 'outline'}>
+                      {v.status === 'PUBLISHED' ? t('statusPublished') : t('statusDraft')}
+                    </Badge>
+                  </CardHeader>
+                </Card>
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title={common('delete')}
+                aria-label={common('delete')}
+                onClick={() => handleDelete(v.id)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
           ))}
         </div>
       )}

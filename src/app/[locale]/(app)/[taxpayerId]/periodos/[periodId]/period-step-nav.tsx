@@ -1,39 +1,49 @@
+'use client';
+
 import { cn } from 'cn';
-import { Link } from '@/i18n/navigation';
+import { LayoutGrid } from 'lucide-react';
+import { Link, usePathname } from '@/i18n/navigation';
 
 const STEPS = ['ingesta', 'ventas', 'conciliacion', 'predeclaracion'] as const;
 
-export type PeriodStep = (typeof STEPS)[number];
-
-function stepHref(taxpayerId: string, periodId: string, step: PeriodStep) {
-  const base = `/${taxpayerId}/periodos/${periodId}`;
-  return step === 'predeclaracion' ? base : `${base}/${step}`;
-}
+type PeriodStep = (typeof STEPS)[number];
 
 /**
- * The period's step bar: full back-and-forth navigation across the four
- * screens (before this, there was only a "← Back" link to the root, and
- * the root itself had no link to any of the other three).
+ * The step bar for the four period screens. Rendered once by the period
+ * layout; it derives the current step from the URL and hides itself on
+ * the period's landing page, where the overview cards are the navigation.
  */
 export function PeriodStepNav({
   taxpayerId,
   periodId,
-  current,
   labels,
 }: {
   taxpayerId: string;
   periodId: string;
-  current: PeriodStep;
-  labels: Record<PeriodStep, string>;
+  labels: Record<PeriodStep, string> & { overview: string };
 }) {
+  const pathname = usePathname();
+  const base = `/${taxpayerId}/periodos/${periodId}`;
+  if (pathname === base) return null;
+
+  const current = pathname.slice(base.length + 1).split('/')[0];
+
   return (
-    <nav className="mb-6 flex gap-1 border-b text-sm">
+    <nav className="mb-6 flex gap-1 overflow-x-auto border-b text-sm">
+      <Link
+        href={base}
+        title={labels.overview}
+        aria-label={labels.overview}
+        className="-mb-px border-b-2 border-transparent px-3 py-2 text-muted-foreground hover:text-foreground"
+      >
+        <LayoutGrid className="size-4" />
+      </Link>
       {STEPS.map((step, i) => (
         <Link
           key={step}
-          href={stepHref(taxpayerId, periodId, step)}
+          href={`${base}/${step}`}
           className={cn(
-            '-mb-px border-b-2 px-3 py-2',
+            '-mb-px whitespace-nowrap border-b-2 px-3 py-2',
             step === current
               ? 'border-primary font-medium text-foreground'
               : 'border-transparent text-muted-foreground hover:text-foreground'
