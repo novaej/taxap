@@ -42,7 +42,7 @@ export default async function IngestaPage({
             <Link
               href={`/${taxpayerId}/periodos/${periodId}/${issued.length > 0 ? 'ventas' : 'conciliacion'}`}
             >
-              <Button variant="link">{t('continueToClassification')}</Button>
+              <Button variant="link">{issued.length > 0 ? t('continueToVentas') : t('continueToConciliacion')}</Button>
             </Link>
           </AlertDescription>
         </Alert>
