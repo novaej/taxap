@@ -185,7 +185,9 @@ Per file:
 
 The page (`ingesta/page.tsx`, server) also lists what the period already
 holds via `getPeriodIngestion()`: upload history plus the received and
-issued vouchers; `ingesta-client.tsx` is the upload form and result.
+issued vouchers and shows the "continue" link whenever the period has any
+(Issued sales if there are issued vouchers, else Reconciliation);
+`ingesta-client.tsx` is the upload form and result.
 
 **Removing an upload** (`removeSourceFile()`, trash icon per file): in one
 transaction it deletes the vouchers imported from that file, the period's

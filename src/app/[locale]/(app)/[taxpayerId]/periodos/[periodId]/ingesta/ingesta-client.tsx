@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
-import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { uploadSourceFiles, type UploadResult } from './actions';
 
 export function IngestaClient() {
@@ -145,17 +144,6 @@ export function IngestaClient() {
             </Card>
           )}
 
-          {(result.validCount ?? 0) > 0 && (
-            <Alert className="border-green-600">
-              <CheckCircle2 className="size-4 text-green-600" />
-              <AlertDescription className="flex items-center justify-between">
-                <span>{t('readyMessage', { count: result.validCount ?? 0 })}</span>
-                <Link href={`/${params.taxpayerId}/periodos/${params.periodId}/ventas`}>
-                  <Button variant="link">{t('continueToClassification')}</Button>
-                </Link>
-              </AlertDescription>
-            </Alert>
-          )}
         </>
       )}
     </div>

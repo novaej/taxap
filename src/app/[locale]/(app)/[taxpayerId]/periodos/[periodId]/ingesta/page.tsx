@@ -1,4 +1,8 @@
 import { getTranslations } from 'next-intl/server';
+import { CheckCircle2 } from 'lucide-react';
+import { Link } from '@/i18n/navigation';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -29,6 +33,20 @@ export default async function IngestaPage({
       <h2 className="mb-6 text-xl font-semibold">{t('title')}</h2>
 
       <IngestaClient />
+
+      {received.length + issued.length > 0 && (
+        <Alert className="mb-6 border-green-600">
+          <CheckCircle2 className="size-4 text-green-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{t('readyMessage', { count: received.length + issued.length })}</span>
+            <Link
+              href={`/${taxpayerId}/periodos/${periodId}/${issued.length > 0 ? 'ventas' : 'conciliacion'}`}
+            >
+              <Button variant="link">{t('continueToClassification')}</Button>
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <h3 className="mb-3 mt-10 text-lg font-semibold">{t('loadedHeading')}</h3>
 
