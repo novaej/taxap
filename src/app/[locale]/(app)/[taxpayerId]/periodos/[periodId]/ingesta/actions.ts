@@ -5,6 +5,7 @@ import { withUser } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/session';
 import { parseFile, ingestionService } from '@/services/ingestion';
 import type { ReceivedInvoiceRow, IssuedInvoiceRow } from '@/services/ingestion';
+import { saveSourceFile, deleteSourceFile } from '@/services/storage';
 import crypto from 'crypto';
 
 export interface UploadResult {
@@ -44,6 +45,11 @@ export async function uploadSourceFiles(
       error: 'No se pudo interpretar el formato del archivo',
     };
   }
+
+  // Outside the DB transaction below: disk I/O shouldn't hold a Postgres
+  // lock, and keying by sha256 means a retry after a failed transaction
+  // overwrites the same path instead of leaving an orphan behind.
+  await saveSourceFile(taxpayerId, sha256, content);
 
   return withUser(userId, async (tx) => {
     const taxPeriod = await tx.taxPeriod.findFirstOrThrow({
@@ -153,7 +159,10 @@ export async function uploadSourceFiles(
 
 export async function removeSourceFile(sourceFileId: string, taxpayerId: string, periodId: string) {
   const userId = await getCurrentUserId();
-  await withUser(userId, (tx) => tx.sourceFile.delete({ where: { id: sourceFileId } }));
+  const deleted = await withUser(userId, (tx) =>
+    tx.sourceFile.delete({ where: { id: sourceFileId } })
+  );
+  await deleteSourceFile(taxpayerId, deleted.sha256);
   revalidatePath(`/${taxpayerId}/periodos/${periodId}/ingesta`);
 }
 

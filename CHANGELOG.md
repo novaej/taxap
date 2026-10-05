@@ -651,3 +651,42 @@ they left.
 - `.env.local.example` documents `ADMIN_EMAIL`/`ADMIN_PASSWORD`;
   `GETTING_STARTED.md`'s admin section and command table updated to
   match (`npm run db:seed` instead of `npm run seed:admin -- ...`).
+
+## [2026-10-04] Uploaded SRI files are now stored, not just parsed and discarded
+
+### Added
+- `src/services/storage/` — `saveSourceFile()`/`readSourceFile()`/
+  `deleteSourceFile()`, local filesystem only, no driver abstraction
+  (nothing to switch to yet). Stores at
+  `storage/<taxpayerId>/<sha256>.txt`, keyed by content hash rather than
+  the DB-generated `SourceFile.id` — the hash is already computed before
+  any database call, and a retry after a failed upload overwrites the
+  same path instead of accumulating an orphan.
+- `uploadSourceFiles()` (`ingesta/actions.ts`) now calls
+  `saveSourceFile()` before the DB transaction, and `removeSourceFile()`
+  deletes the on-disk file along with its `source_files` row — until
+  now, the raw upload was parsed into memory and discarded; only the
+  parsed rows and the file's metadata (`filename`, `sha256`, row counts)
+  ever reached storage.
+- `/storage` is gitignored — same sensitivity class as `/samples`: it
+  will hold real tax data, never versioned.
+
+### Removed
+- The dead `STORAGE_DRIVER`/`STORAGE_PATH` lines in
+  `.env.local.example`: nothing ever read them (confirmed by grep before
+  removing), left over from before this feature existed. Replaced with
+  an accurate comment — the path is fixed in code, not configurable yet.
+- The dangling `!.example.env` line in `.gitignore`, for the file
+  deleted alongside the AI-provider work earlier today.
+
+### No change (deliberate)
+- **Retention policy is still undecided** (`NEXT_STEPS.md`). Files are
+  kept indefinitely with no cleanup job; whether they should be archived
+  or deleted after some period, and whether production needs
+  S3-compatible storage instead of local disk, are both still open.
+
+Verified directly: saved a file, read it back byte-for-byte, re-saved
+identical content without creating a duplicate path, then deleted it
+through the same path `removeSourceFile()` uses and confirmed both the
+DB row and the file disappeared together; deleting an already-missing
+file does not throw.

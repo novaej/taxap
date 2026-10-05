@@ -7,7 +7,6 @@ dist/
 .env
 .env.local
 .env*.local
-!.example.env
 
 *.log
 npm-debug.log*
@@ -20,7 +19,10 @@ coverage/
 *.tsbuildinfo
 next-env.d.ts
 
-# Archivos del SRI — nunca se versionan: son datos tributarios reales
+# SRI files -- never versioned: they're real tax data
 /samples/
 *.txt
 !docs/**/*.txt
+
+# Uploaded source files, stored locally (src/services/storage/)
+/storage/

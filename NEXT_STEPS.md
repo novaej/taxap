@@ -10,10 +10,13 @@ from `comprobify-web/docs/adr/008`). Not decided until there's something
 to deploy. A warning on record from that project: **the cheapest droplet
 fell short for Next.js with Prisma.** Start at least one tier up.
 
-**Storage of original files.** Keeping the uploaded `.txt` files allows
-reprocessing without asking for them again. Filesystem locally; in
-production, S3-compatible storage. Not yet decided whether they're kept
-indefinitely.
+**Retention of stored source files.** Uploaded `.txt` files are now kept
+on the local filesystem (`src/services/storage/`, since 2026-10-04), so
+a period can be reprocessed without re-asking for them. Still
+undecided: whether they're kept indefinitely or archived/deleted after
+some period, and whether production needs S3-compatible storage instead
+of a local disk (today there's only a local driver, no abstraction to
+swap it).
 
 **Terms and conditions.** [ADR-014](docs/adr/014-caracter-asistivo-y-disclaimers.md)
 sets the product stance. The legal text needs professional review before

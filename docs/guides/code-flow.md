@@ -155,7 +155,8 @@ never `RESET` — an unset variable must fail closed, not open. See
 **Route:** `/[locale]/(app)/[taxpayerId]/periodos/[periodId]/ingesta`
 **Server Action:** `uploadSourceFiles()` (`ingesta/actions.ts`)
 **Layers:** page → `services/ingestion` (parsing and validation) →
-`domain/iva/access-key` (access-key consistency) → `withUser()`
+`services/storage` (saves the raw file) → `domain/iva/access-key`
+(access-key consistency) → `withUser()`
 
 One file at a time for now (the SRI's multi-file upload layout —
 `samples/`, one file per day — still has no UI).
@@ -165,7 +166,13 @@ Per file:
    (`detectFileType` — 12 columns with `RUC_EMISOR` = received, 8 with
    `COMPROBANTE` = issued). See
    [`../tax/formato-archivos-sri.md`](../tax/formato-archivos-sri.md).
-2. Register it in `source_files`.
+2. Save the raw content to disk (`saveSourceFile()`,
+   `src/services/storage/`, since 2026-10-04) at
+   `storage/<taxpayerId>/<sha256>.txt` — outside the DB transaction,
+   keyed by hash so a retry after a failed upload overwrites the same
+   path instead of piling up orphans. `removeSourceFile()` deletes both
+   the `source_files` row and this file together.
+3. Register it in `source_files`.
 
 Per row (`ingestionService.validateReceivedRow`/`validateIssuedRow`):
 1. Decompose the `CLAVE_ACCESO` and cross-check it against date, type,
