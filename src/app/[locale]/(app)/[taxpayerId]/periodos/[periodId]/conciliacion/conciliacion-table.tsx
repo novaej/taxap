@@ -38,7 +38,7 @@ interface PurchaseRow {
   series: string;
 }
 
-type Tab = 'UNCLASSIFIED' | 'CREDIT' | 'COST_EXPENSE' | 'PENDING' | 'NO_VAT';
+type Tab = 'UNCLASSIFIED' | 'CREDIT' | 'COST_EXPENSE' | 'NON_DEDUCTIBLE' | 'PENDING' | 'NO_VAT';
 
 export function ConciliacionTable({
   purchases,
@@ -63,6 +63,7 @@ export function ConciliacionTable({
   );
   const withCredit = purchases.filter((p) => p.ivaCategory === 'CREDIT');
   const costExpense = purchases.filter((p) => p.ivaCategory === 'COST_EXPENSE');
+  const nonDeductible = purchases.filter((p) => p.ivaCategory === 'NON_DEDUCTIBLE');
   const pending = purchases.filter((p) => p.processingStatus === 'REQUIRES_MANUAL_REVIEW');
 
   // Open on the first tab that has something, not on an empty one: an
@@ -76,7 +77,9 @@ export function ConciliacionTable({
           ? 'CREDIT'
           : costExpense.length > 0
             ? 'COST_EXPENSE'
-            : 'UNCLASSIFIED'
+            : nonDeductible.length > 0
+              ? 'NON_DEDUCTIBLE'
+              : 'UNCLASSIFIED'
   );
 
   const visible = useMemo(() => {
@@ -84,8 +87,9 @@ export function ConciliacionTable({
     if (tab === 'UNCLASSIFIED') return unclassified;
     if (tab === 'CREDIT') return withCredit;
     if (tab === 'COST_EXPENSE') return costExpense;
+    if (tab === 'NON_DEDUCTIBLE') return nonDeductible;
     return pending;
-  }, [tab, noVat, unclassified, withCredit, costExpense, pending]);
+  }, [tab, noVat, unclassified, withCredit, costExpense, nonDeductible, pending]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -158,7 +162,7 @@ export function ConciliacionTable({
         </Alert>
       )}
 
-      {withCredit.length + costExpense.length > 0 && (
+      {withCredit.length + costExpense.length + nonDeductible.length > 0 && (
         <div className="flex justify-end">
           <Button variant="outline" size="sm" onClick={reclassifyAll} disabled={isPending}>
             <RefreshCw className="size-4" />
@@ -176,6 +180,9 @@ export function ConciliacionTable({
         </Button>
         <Button variant={tab === 'COST_EXPENSE' ? 'default' : 'outline'} size="sm" onClick={() => setTab('COST_EXPENSE')}>
           {t('tabCostExpense')} ({costExpense.length})
+        </Button>
+        <Button variant={tab === 'NON_DEDUCTIBLE' ? 'default' : 'outline'} size="sm" onClick={() => setTab('NON_DEDUCTIBLE')}>
+          {t('tabNonDeductible')} ({nonDeductible.length})
         </Button>
         <Button variant={tab === 'PENDING' ? 'default' : 'outline'} size="sm" onClick={() => setTab('PENDING')}>
           {t('tabPending')} ({pending.length})
@@ -233,7 +240,7 @@ export function ConciliacionTable({
 
       {visible.length === 0 ? (
         <p className="text-muted-foreground">
-          {tab === 'UNCLASSIFIED' && purchases.length > 0 && pending.length + withCredit.length + costExpense.length === 0
+          {tab === 'UNCLASSIFIED' && purchases.length > 0 && pending.length + withCredit.length + costExpense.length + nonDeductible.length === 0
             ? t('nothingClassifiedYet')
             : t('emptyState')}
         </p>
@@ -255,6 +262,7 @@ export function ConciliacionTable({
               <SelectContent>
                 <SelectItem value="CREDIT">{t('withCredit')}</SelectItem>
                 <SelectItem value="COST_EXPENSE">{t('costOrExpense')}</SelectItem>
+                <SelectItem value="NON_DEDUCTIBLE">{t('nonDeductible')}</SelectItem>
               </SelectContent>
             </Select>
             <Button size="sm" onClick={applyBulk} disabled={isPending || selected.size === 0}>
@@ -296,7 +304,9 @@ export function ConciliacionTable({
                         ? t('withCredit')
                         : p.ivaCategory === 'COST_EXPENSE'
                           ? t('costOrExpense')
-                          : p.processingStatus === 'REQUIRES_MANUAL_REVIEW'
+                          : p.ivaCategory === 'NON_DEDUCTIBLE'
+                            ? t('nonDeductible')
+                            : p.processingStatus === 'REQUIRES_MANUAL_REVIEW'
                             ? t('tabPending')
                             : t('tabUnclassified')}
                     </Badge>

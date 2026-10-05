@@ -300,8 +300,12 @@ below 0.80 — the same bar
 `classification-cascade.ts`'s `level3_aiSuggestion()` requires to accept
 it. Both use structured output (Zod schema via each SDK's own helper),
 never prose parsing. The request sent to either provider carries only
-the *supplier's* RUC, name, and document type — never the taxpayer's own
-identity (ADR-007). A `classification_events` row sourced from AI
+the *supplier's* RUC, name, and document type plus the *buyer's* economic
+activities (all of them, code and description) and tax regime — never the
+taxpayer's own RUC or name (ADR-007, "Data minimization"). The buyer's
+activity is what lets the model say a grocery store doesn't fit a
+professional-services business; without it every ordinary-looking company
+came back as `CREDIT` (prompt `supplier-classification-v2`). A `classification_events` row sourced from AI
 records which `model_id` and `prompt_version` produced it
 (`PROMPT_VERSION` in `src/services/ai/types.ts`, bumped whenever the
 prompt's wording or schema changes).

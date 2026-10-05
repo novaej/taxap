@@ -146,6 +146,9 @@ export async function classifyPeriod(
           supplierRuc,
           supplierName: representative.supplierName,
           documentType: representative.documentType,
+          // ADR-007: the buyer's activity and regime, never its RUC or name.
+          buyerActivities: taxpayer.economicActivities as Array<{ code: string; description: string }>,
+          buyerRegime: taxpayer.regime,
         });
         if (aiResult) aiResults.set(supplierRuc, aiResult);
       } catch (err) {

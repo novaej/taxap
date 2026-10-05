@@ -6,6 +6,8 @@ Imperative mood: "Add", not "Added".
 ## [Unreleased]
 
 ### Added
+- Reconciliation: "No deducible" tab and manual option for `NON_DEDUCTIBLE`
+  (the AI can return it; before, those vouchers appeared nowhere)
 - Reconciliation: classify again — "Reclasificar todo" (engine results
   only, manual decisions kept) and "Reclasificar automáticamente" on the
   selected vouchers
@@ -73,6 +75,10 @@ Imperative mood: "Add", not "Added".
   to `NEXT_STEPS.md`.
 
 ### Fixed
+- AI classification ignored the buyer: the request had only the supplier,
+  so nearly every ordinary-looking company came back as `CREDIT`. It now
+  sends the buyer's economic activities and regime as ADR-007 specifies
+  (never the RUC or name); prompt bumped to `supplier-classification-v2`
 - Classifying with AI crashed with "A query cannot be executed on an
   expired transaction" (5 s limit): the AI calls ran inside the DB
   transaction, one supplier at a time. `classifyPeriod` now reads, asks

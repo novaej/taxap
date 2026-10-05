@@ -234,6 +234,8 @@
     "tabUnclassified": "Sin clasificar",
     "classification": "Clasificación",
     "unclassifiedHint": "Hay {count} comprobantes con IVA sin clasificar. Clasifícalos para continuar.",
+    "tabNonDeductible": "No deducible",
+    "nonDeductible": "No deducible",
     "tabNoVat": "Sin IVA (informativo)",
     "noVatInfo": "Comprobantes con IVA 0: no se clasifican ni entran al cálculo de crédito. Se muestran solo como referencia.",
     "date": "Fecha",

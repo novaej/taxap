@@ -70,6 +70,12 @@ checking the portal, or confirming an effective date:
       existed since 2026-10-04 and won't let anything be saved without a
       source and verification date — the verification itself is still
       missing (`docs/tax/tasas-iva.md`: no rate confirmed yet).
+- [ ] **Decide where `NON_DEDUCTIBLE` purchases go.** The AI can now
+      return it (and the screen has a "No deducible" tab), but
+      `calculator.ts` counts only `CREDIT` (500) and `COST_EXPENSE` (502):
+      a `NON_DEDUCTIBLE` voucher currently appears in no result. Whether
+      it belongs in 502 is `[VERIFICAR]` in
+      [`formulario-104.md`](docs/tax/formulario-104.md).
 - [ ] **Verify with the portal** whether 563/564/565 and the totals
       (409/419/429, 509/519/529) are computed by the portal from what's
       entered ([`docs/tax/formulario-104.md`](docs/tax/formulario-104.md)

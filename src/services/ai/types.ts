@@ -3,15 +3,18 @@
  * Every provider implementation (Claude, OpenAI, ...) returns this same
  * shape, so `getAiClassifier()`'s caller never knows which one answered.
  *
- * ADR-007 privacy rule: only supplier identity goes in the request, never
- * the taxpayer's own RUC or name -- classification is per supplier, not
- * per taxpayer.
+ * ADR-007 data minimization: the request carries the supplier's identity
+ * and the buyer's economic activity and regime (what the decision
+ * depends on), never the taxpayer's own RUC or name.
  */
 
 export interface SupplierClassificationRequest {
   supplierRuc: string;
   supplierName: string;
   documentType: string;
+  /** The buyer's registered activities -- never the buyer's RUC or name. */
+  buyerActivities: Array<{ code: string; description: string }>;
+  buyerRegime: string;
 }
 
 export type AiIvaCategory = 'CREDIT' | 'COST_EXPENSE' | 'NON_DEDUCTIBLE';
@@ -35,19 +38,28 @@ export interface AiClassifier {
  * so a stored classification_events row says which prompt produced it
  * (CLAUDE.md -> "Toda respuesta registra model_id y prompt_version").
  */
-export const PROMPT_VERSION = 'supplier-classification-v1';
+export const PROMPT_VERSION = 'supplier-classification-v2';
 
 export function buildClassificationPrompt(request: SupplierClassificationRequest): string {
-  return `You are classifying a single purchase voucher for Ecuadorian IVA (VAT) tax-credit eligibility, based only on the supplier's identity and document type -- never on the buyer.
+  const activities =
+    request.buyerActivities.length > 0
+      ? request.buyerActivities.map((a) => `- ${a.code}: ${a.description}`).join('\n')
+      : '- (none registered)';
+
+  return `You are classifying purchase vouchers received by an Ecuadorian taxpayer, for IVA (VAT) tax-credit eligibility. The buyer is identified only by its economic activity and tax regime.
+
+Buyer's economic activities:
+${activities}
+Buyer's tax regime: ${request.buyerRegime}
 
 Supplier RUC: ${request.supplierRuc}
 Supplier name: ${request.supplierName}
-Document type code (SRI): ${request.documentType}
+Document type: ${request.documentType}
 
-Decide which of these three categories best fits purchases from this supplier:
-- CREDIT: the IVA paid normally gives the buyer a right to tax credit (e.g. ordinary goods/services suppliers).
-- COST_EXPENSE: the purchase is a valid business cost or expense, but the IVA paid does NOT give a right to tax credit (e.g. the activity or the item purchased doesn't entitle credit under Ecuadorian tax law).
-- NON_DEDUCTIBLE: the purchase is not deductible at all for this business (e.g. personal, unrelated to any taxable activity).
+Decide which category best fits purchases from this supplier, for this buyer:
+- CREDIT: what this supplier typically sells plausibly serves the buyer's economic activity, so the IVA paid gives a right to tax credit.
+- COST_EXPENSE: a valid business cost or expense for this buyer, but the IVA paid does NOT give a right to tax credit.
+- NON_DEDUCTIBLE: what this supplier typically sells does not relate to the buyer's economic activity (for example personal consumption such as groceries, restaurants or fuel for a buyer whose activity doesn't need them).
 
-Respond with your best judgment from the supplier's name and document type alone. If you are genuinely unsure, say so with a low confidence value rather than guessing with high confidence.`;
+Judge whether the supplier's usual goods or services fit the buyer's activity -- a supplier being an ordinary company is not enough for CREDIT. You only know the supplier's name, not what was bought, so when the purpose is genuinely ambiguous (supermarkets, restaurants, fuel, general retail) answer with a low confidence value rather than guessing with high confidence.`;
 }
